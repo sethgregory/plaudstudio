@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Plaud Studio</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="apple-touch-icon" href="favicon.png">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="vendor/katex/katex.min.css">
+</head>
+<body>
+  <div id="app-container">
+    <div id="app-body">
+      <!-- Sidebar Navigation -->
+    <aside id="sidebar">
+      <div class="sidebar-header">
+        <div class="brand">
+          <img src="favicon.png" alt="Plaud Studio" class="brand-logo-img">
+          <span>Plaud Studio</span>
+        </div>
+        <button id="btn-open-settings" class="btn-icon" title="Settings">⚙️</button>
+      </div>
+
+      <div class="user-badge">
+        <div class="user-info">
+          <div class="user-avatar" id="user-avatar">👤</div>
+          <div>
+            <div class="user-name" id="user-name">Loading...</div>
+            <div style="font-size: 0.7rem; color: var(--success);" id="user-status">● Connected</div>
+          </div>
+        </div>
+        <button id="btn-sync" class="btn-icon" title="Sync from Plaud">🔄</button>
+      </div>
+
+      <div class="sidebar-sections">
+        <!-- Processing Status (Top Section) -->
+        <section>
+          <div class="section-label">Processing Status</div>
+          <ul class="nav-list">
+            <li class="nav-item active" data-filter-type="status" data-filter-val="all">
+              <div class="nav-item-left"><span>🌐</span> All Recordings</div>
+              <span class="nav-pill" id="count-all">0</span>
+            </li>
+            <li class="nav-item" data-filter-type="status" data-filter-val="local">
+              <div class="nav-item-left"><span>💻</span> Stored Locally</div>
+              <span class="nav-pill" id="count-local">0</span>
+            </li>
+            <li class="nav-item nav-item-sub" data-filter-type="status" data-filter-val="ready">
+              <div class="nav-item-left"><span>✅</span> Summarized & Ready</div>
+              <span class="nav-pill" id="count-ready">0</span>
+            </li>
+            <li class="nav-item nav-item-sub" data-filter-type="status" data-filter-val="transcribed">
+              <div class="nav-item-left"><span>📝</span> Transcribed Only</div>
+              <span class="nav-pill" id="count-transcribed">0</span>
+            </li>
+            <li class="nav-item nav-item-sub" data-filter-type="status" data-filter-val="audio_ready">
+              <div class="nav-item-left"><span>🎵</span> Downloaded Audio</div>
+              <span class="nav-pill" id="count-audio-ready">0</span>
+            </li>
+            <li class="nav-item" data-filter-type="status" data-filter-val="available">
+              <div class="nav-item-left"><span>☁️</span> Cloud Only (Plaud)</div>
+              <span class="nav-pill" id="count-cloud">0</span>
+            </li>
+          </ul>
+        </section>
+
+        <!-- Folders -->
+        <section>
+          <div class="section-label">
+            <span>Folders</span>
+            <button id="btn-add-folder" class="btn-icon" style="padding:0;font-size:1rem;" title="Add Folder">+</button>
+          </div>
+          <ul class="nav-list" id="folders-list">
+            <!-- Dynamic Folders -->
+          </ul>
+        </section>
+      </div>
+
+      <!-- Sidebar Footer Stats -->
+      <div class="sidebar-footer">
+        <div>Total Library: <strong id="stat-hours">0h</strong> (<span id="stat-total">0</span> recordings)</div>
+        <div class="stat-grid">
+          <div class="stat-box">
+            <div class="stat-num" id="stat-transcribed">0</div>
+            <div class="stat-lbl">Transcribed</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-num" id="stat-summarized">0</div>
+            <div class="stat-lbl">Summarized</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main id="main-content">
+      <header class="main-topbar">
+        <div class="search-box">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="search-input" placeholder="Search titles, transcripts, summaries, classes...">
+        </div>
+
+        <div class="topbar-actions">
+          <div class="view-tabs">
+            <div class="view-tab active" data-view="timeline">📅 Timeline</div>
+            <div class="view-tab" data-view="grouped">📂 Grouped</div>
+          </div>
+
+          <select id="sort-select" class="btn" style="padding: 0.45rem 0.75rem;">
+            <option value="start_at:DESC">Date: Newest First</option>
+            <option value="start_at:ASC">Date: Oldest First</option>
+            <option value="duration:DESC">Duration: Longest</option>
+            <option value="name:ASC">Title: A-Z</option>
+          </select>
+
+          <button id="btn-sync-top" class="btn btn-primary">
+            <span>🔄</span> Sync Plaud
+          </button>
+        </div>
+      </header>
+
+      <!-- Recordings Container -->
+      <div class="recordings-view" id="recordings-view">
+        <div id="recordings-list">
+          <!-- Dynamically populated cards or groups -->
+        </div>
+      </div>
+    </main>
+    </div>
+
+    <!-- Live Logs Drawer -->
+    <div id="logs-drawer" class="logs-drawer" style="display: none;">
+      <div class="logs-drawer-header">
+        <div class="logs-drawer-title">
+          <span class="live-pulse-dot" id="logs-stream-dot"></span>
+          <span>Live Console</span>
+          <span class="logs-count-badge" id="logs-count-badge">0 lines</span>
+        </div>
+        <div class="logs-drawer-controls">
+          <div class="logs-filter-group">
+            <label for="logs-filter-select">Filter:</label>
+            <select id="logs-filter-select" class="logs-filter-select">
+              <option value="all">All Logs</option>
+              <option value="stage">Stages &amp; Milestones</option>
+              <option value="whisper">Whisper STT</option>
+              <option value="llm">AI / LLM Summaries</option>
+              <option value="ffmpeg">FFmpeg Audio</option>
+              <option value="warn-error">Warnings &amp; Errors</option>
+            </select>
+          </div>
+          <label class="logs-checkbox-label">
+            <input type="checkbox" id="logs-autoscroll" checked>
+            <span>Auto-scroll</span>
+          </label>
+          <button id="btn-copy-logs" class="btn btn-sm" title="Copy log text">📋 Copy</button>
+          <button id="btn-clear-logs" class="btn btn-sm" title="Clear log history">🗑️ Clear</button>
+          <button id="btn-close-logs" class="btn-icon" style="font-size: 1rem; padding: 0.15rem 0.45rem;" title="Close drawer">✕</button>
+        </div>
+      </div>
+      <div id="logs-console" class="logs-console"></div>
+    </div>
+
+    <!-- Global Persistent Status Bar -->
+    <footer id="global-status-bar">
+      <div class="status-bar-left">
+        <span class="status-indicator-dot" id="status-indicator-dot"></span>
+        <span class="status-stage-badge stage-ready" id="status-stage-badge">READY</span>
+        <span class="status-message-text" id="status-message-text">Plaud Studio is ready</span>
+      </div>
+      <div class="status-bar-right">
+        <span class="status-engine-pill" id="status-engine-pill">⚡ Whisper Metal GPU</span>
+        <button id="btn-toggle-logs" class="status-bar-btn" title="Toggle Live Console">
+          <span class="status-logs-icon">📋</span>
+          <span>Logs</span>
+          <span class="status-logs-badge" id="status-logs-badge" style="display: none;">0</span>
+        </button>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Reader / Detail Full Modal -->
+  <div class="modal-overlay" id="reader-modal-overlay">
+    <div class="reader-modal">
+      <div class="reader-header">
+        <div class="reader-title-area">
+          <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.35rem;flex-wrap:wrap;">
+            <span id="modal-storage-badge" class="storage-badge storage-local">💻 Stored Locally</span>
+            <div id="modal-folder-tags" style="display:inline-flex;align-items:center;gap:0.4rem;flex-wrap:wrap;"></div>
+            <div class="folder-picker-wrapper" style="position:relative;display:inline-block;">
+              <button id="btn-add-recording-folder" class="btn btn-sm" style="padding:0.2rem 0.55rem;font-size:0.75rem;display:inline-flex;align-items:center;gap:0.25rem;border-radius:9999px;background:rgba(255,255,255,0.06);border:1px dashed var(--border-color, #475569);cursor:pointer;" title="Assign to Folder">
+                <span>📁 +</span> Add to Folder
+              </button>
+              <div id="folder-picker-menu" class="folder-picker-dropdown" style="display:none;"></div>
+            </div>
+          </div>
+          <div class="reader-title-container" style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+            <div class="reader-title" id="modal-title" title="Click or tap pencil to edit title" style="cursor:pointer;">Lecture Title</div>
+            <button id="btn-edit-modal-title" class="btn-icon" title="Edit Title" style="font-size:0.95rem;padding:0.2rem 0.4rem;opacity:0.75;cursor:pointer;">✏️</button>
+            <button id="btn-suggest-title" class="btn btn-sm" title="Adopt Title from AI Summary" style="display:none;padding:0.15rem 0.5rem;font-size:0.75rem;background:rgba(56,189,248,0.12);color:#38bdf8;border:1px solid rgba(56,189,248,0.3);border-radius:4px;">✨ Adopt Summary Title</button>
+            <div id="modal-original-title" style="display:none;width:100%;font-size:0.8rem;color:var(--text-muted);margin-top:-0.2rem;"></div>
+          </div>
+          <div id="modal-title-edit-box" style="display:none;align-items:center;gap:0.5rem;margin:0.35rem 0;">
+            <input type="text" id="modal-title-input" style="flex:1;font-size:1.1rem;font-weight:600;padding:0.35rem 0.6rem;background:var(--bg-input, #1e293b);color:var(--text-main, #f8fafc);border:1px solid var(--border-color, #334155);border-radius:6px;outline:none;">
+            <button id="btn-save-modal-title" class="btn btn-primary" style="padding:0.35rem 0.75rem;font-size:0.85rem;">Save</button>
+            <button id="btn-cancel-modal-title" class="btn" style="padding:0.35rem 0.65rem;font-size:0.85rem;">Cancel</button>
+          </div>
+          <div class="reader-meta">
+            <span id="modal-date">📅 2026-10-09</span>
+            <span id="modal-duration">⏱️ 50 mins</span>
+            <span id="modal-status-badge" class="status-badge status-ready">Ready</span>
+          </div>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:0.45rem;flex-wrap:wrap;">
+          <button id="btn-pull-cloud" class="btn btn-sm" title="Fetch transcript and summary from Plaud Cloud">
+            <span>☁️</span> Pull Cloud Data
+          </button>
+          <button id="btn-export-html" class="btn btn-sm" title="Download standalone offline HTML file">
+            <span>📄</span> Export HTML
+          </button>
+          <button id="btn-retranscribe" class="btn btn-sm" title="Re-run Whisper Speech-to-Text & Diarization">
+            <span>🎙️</span> Re-Transcribe
+          </button>
+          <button id="btn-resummarize" class="btn btn-sm" title="Re-generate AI Summary">
+            <span>✨</span> Re-Summarize
+          </button>
+          <button id="btn-close-reader" class="btn-icon" style="font-size:1.15rem;padding:0.35rem 0.6rem;" title="Close">✕</button>
+        </div>
+      </div>
+
+      <!-- Cloud Storage Banner (Visible only for cloud-only recordings) -->
+      <div id="modal-cloud-banner" class="cloud-notice-banner" style="display:none;margin: 0.5rem 1.5rem 0.75rem 1.5rem;">
+        <div style="display:flex;align-items:center;gap:0.6rem;">
+          <span style="font-size:1.3rem;">☁️</span>
+          <div>
+            <strong>Cloud-Only Recording (Plaud API)</strong>
+            <div style="font-size:0.8rem;color:var(--text-muted);">This audio is stored in the Plaud cloud and has not been downloaded to your Mac yet.</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:0.5rem;flex-shrink:0;">
+          <button id="btn-modal-cloud-process" class="btn btn-sm btn-primary">⚡ Download & Process</button>
+          <button id="btn-modal-cloud-download" class="btn btn-sm">⬇️ Download Audio</button>
+        </div>
+      </div>
+
+      <!-- Sticky Audio Player Bar -->
+      <div class="audio-bar" id="reader-audio-bar">
+        <div class="audio-controls">
+          <button id="btn-audio-back" class="btn-icon" title="Back 15 seconds">⏪ 15s</button>
+          <button id="btn-audio-play" class="btn btn-primary" style="padding:0.35rem 0.85rem;" title="Play/Pause">
+            <span id="play-icon">▶</span>
+          </button>
+          <button id="btn-audio-forward" class="btn-icon" title="Forward 15 seconds">15s ⏩</button>
+        </div>
+
+        <div class="audio-scrubber">
+          <span class="audio-time" id="audio-current-time">00:00</span>
+          <div class="audio-progress" id="audio-progress-bar-container">
+            <div class="audio-progress-bar" id="audio-progress-fill"></div>
+          </div>
+          <span class="audio-time" id="audio-total-time">00:00</span>
+        </div>
+
+        <div class="playback-rates">
+          <button class="rate-btn" data-rate="0.75">0.75x</button>
+          <button class="rate-btn active" data-rate="1">1x</button>
+          <button class="rate-btn" data-rate="1.25">1.25x</button>
+          <button class="rate-btn" data-rate="1.5">1.5x</button>
+          <button class="rate-btn" data-rate="2">2x</button>
+        </div>
+
+        <!-- Hidden native audio element -->
+        <audio id="global-audio-player" preload="metadata"></audio>
+      </div>
+
+      <!-- Reader Navigation Tabs -->
+      <div class="reader-tabs">
+        <div class="reader-tab active" data-tab="summary" id="tab-btn-summary">📖 Studio Summary</div>
+        <div class="reader-tab" data-tab="plaud-summary" id="tab-btn-plaud-summary" style="display:none;">☁️ Plaud Summary</div>
+        <div class="reader-tab" data-tab="transcript" id="tab-btn-transcript">💬 Interactive Transcript</div>
+        <div class="reader-tab" data-tab="notes" id="tab-btn-notes">📝 Personal Notes & Info</div>
+      </div>
+
+      <!-- Reader Content Area -->
+      <div class="reader-content">
+        <!-- Tab 1: AI Summary / Notes -->
+        <div id="tab-content-summary" class="tab-pane">
+          <div id="modal-reasoning-container" class="reasoning-box" style="display:none;">
+            <div class="reasoning-toggle" id="btn-toggle-reasoning">
+              <span>🧠</span> <strong>View AI Reasoning & Thinking Process</strong> <span id="reasoning-arrow">▼</span>
+            </div>
+            <div class="reasoning-content" id="modal-reasoning-body"></div>
+          </div>
+          <article class="notes-article" id="modal-summary-body">
+            <!-- Rendered HTML summary -->
+          </article>
+        </div>
+
+        <!-- Tab 2: Plaud Cloud Summary -->
+        <div id="tab-content-plaud-summary" class="tab-pane" style="display:none;">
+          <article class="notes-article" id="modal-plaud-summary-body">
+            <!-- Rendered Plaud Cloud HTML summary -->
+          </article>
+        </div>
+
+        <!-- Tab 2: Interactive Transcript -->
+        <div id="tab-content-transcript" class="tab-pane" style="display:none;">
+          <div class="transcript-container">
+            <div class="transcript-search">
+              <input type="text" id="transcript-search-input" placeholder="Search inside this transcript..." class="search-box" style="width:100%;padding:0.6rem 1rem;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;color:var(--text-main);">
+            </div>
+            <div class="transcript-list" id="modal-transcript-list">
+              <!-- Utterances with clickable timestamps -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 3: Personal Notes & Metadata -->
+        <div id="tab-content-notes" class="tab-pane" style="display:none;">
+          <div style="max-width:850px;margin:0 auto;display:flex;flex-direction:column;gap:1.5rem;">
+            <div class="form-group">
+              <label>Personal Notes</label>
+              <textarea id="modal-user-notes" rows="6" placeholder="Add your private notes, study reminders, or meeting follow-ups here..."></textarea>
+              <div style="display:flex;justify-content:flex-end;">
+                <button id="btn-save-notes" class="btn btn-primary" style="margin-top:0.5rem;">Save Notes</button>
+              </div>
+            </div>
+
+            <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:1.25rem;">
+              <h4 style="margin-bottom:0.75rem;">Recording Metadata</h4>
+              <div id="modal-metadata-table" style="font-size:0.85rem;line-height:1.7;color:var(--text-muted);">
+                <!-- Metadata key-values -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Re-Summarize Dialog Modal -->
+  <div class="modal-overlay" id="summarize-modal-overlay">
+    <div class="settings-modal" style="max-width:520px;">
+      <h3 style="display:flex;align-items:center;gap:0.5rem;"><span>✨</span> Generate AI Summary</h3>
+      <div class="form-group">
+        <label>Summarization Engine</label>
+        <select id="resummarize-engine">
+          <option value="default">⚙️ Default Engine (from Settings)</option>
+          <option value="custom_api">🌐 Remote LAN Server (Qwen 3.8 27B)</option>
+          <option value="local_llama">💻 Local llama.cpp (Metal GPU on this Mac)</option>
+          <option value="gemini">✨ Google Gemini API</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Summary Style & Category</label>
+        <select id="resummarize-category">
+          <option value="lecture">🎓 University Lecture (Detailed Lesson Notes & Study Guide)</option>
+          <option value="meeting">💼 Work Meeting (Actionable Minutes, Decisions & Next Steps)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Custom Focus or Instructions (Optional)</label>
+        <textarea id="resummarize-instructions" rows="3" placeholder="e.g. Focus on midterm exam topics, highlight derivations, or list action items with assignees..."></textarea>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:0.75rem;margin-top:0.5rem;">
+        <button id="btn-cancel-summarize" class="btn">Cancel</button>
+        <button id="btn-start-summarize" class="btn btn-primary">Generate Summary</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Folder Dialog Modal -->
+  <div class="modal-overlay" id="project-modal-overlay">
+    <div class="settings-modal" style="max-width:480px;">
+      <h3 id="project-modal-heading">📁 Add New Folder</h3>
+      <div class="form-group">
+        <label>Folder Name</label>
+        <input type="text" id="project-modal-name" placeholder="e.g. Chemistry, CS 101, Client Syncs...">
+      </div>
+      <div class="form-group">
+        <label>Color Badge</label>
+        <input type="color" id="project-modal-color" value="#38bdf8" style="height:40px;cursor:pointer;">
+      </div>
+      <div class="form-group">
+        <label>Description (Optional)</label>
+        <input type="text" id="project-modal-desc" placeholder="Brief note or description...">
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:0.75rem;margin-top:0.5rem;">
+        <button id="btn-cancel-project" class="btn">Cancel</button>
+        <button id="btn-save-project" class="btn btn-primary">Save Folder</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div class="modal-overlay" id="settings-modal-overlay">
+    <div class="settings-modal">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <h3>⚙️ Application Settings</h3>
+        <button id="btn-close-settings" class="btn-icon">✕</button>
+      </div>
+
+      <div class="form-group">
+        <label>AI Summarization Engine</label>
+        <select id="setting-llm-provider">
+          <option value="custom_api">🌐 Remote OpenAI-Compatible / LAN Server (e.g. localhost:8081)</option>
+          <option value="local_llama">💻 Local llama.cpp (Free, Private, Apple Silicon Metal GPU)</option>
+          <option value="gemini">✨ Google Gemini API</option>
+        </select>
+      </div>
+
+      <div class="form-group" id="setting-group-local-model">
+        <label>Local LLM Model</label>
+        <select id="setting-local-model">
+          <!-- Populated dynamically with available .gguf models -->
+        </select>
+        <div class="form-help">Select from models detected on this machine.</div>
+      </div>
+
+      <div id="setting-group-api" style="display:none;flex-direction:column;gap:0.75rem;">
+        <div class="form-group">
+          <label>API Endpoint URL</label>
+          <input type="text" id="setting-api-url" placeholder="http://localhost:8081/v1">
+        </div>
+        <div class="form-group">
+          <label>API Key (Optional for local LAN / Ollama / llama.cpp servers)</label>
+          <input type="password" id="setting-api-key" placeholder="sk-...">
+        </div>
+        <div class="form-group">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem;">
+            <label style="margin:0;">Model Name</label>
+            <button type="button" id="btn-fetch-remote-models" class="btn" style="padding:0.2rem 0.6rem;font-size:0.75rem;">⚡ Fetch Models</button>
+          </div>
+          <input type="text" id="setting-api-model" placeholder="Qwen3.8-27B-UD-IQ4_XS.gguf">
+          <select id="setting-remote-models-dropdown" style="display:none;margin-top:0.35rem;"></select>
+          <div class="form-help" id="remote-models-status" style="margin-top:0.25rem;"></div>
+        </div>
+      </div>
+
+      <div id="setting-group-gemini" style="display:none;flex-direction:column;gap:0.75rem;">
+        <div class="form-group">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem;">
+            <label style="margin:0;">Gemini API Key</label>
+            <button type="button" id="btn-fetch-gemini-models" class="btn" style="padding:0.2rem 0.6rem;font-size:0.75rem;">⚡ Refresh Models</button>
+          </div>
+          <input type="password" id="setting-gemini-key" placeholder="AIza...">
+          <div class="form-help" id="gemini-key-status" style="margin-top:0.25rem;">Enter your Google AI Studio key to automatically load available models.</div>
+        </div>
+        <div class="form-group">
+          <label>Gemini Model</label>
+          <select id="setting-gemini-model">
+            <option value="gemini-3-flash-preview">Gemini 3 Flash Preview (Recommended - Fast & Powerful)</option>
+            <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite (High Speed & Low Latency)</option>
+            <option value="gemini-3.8-flash">Gemini 3.8 Flash (Latest Flash)</option>
+            <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro Preview (Deep Reasoning)</option>
+          </select>
+          <div class="form-help" id="gemini-models-status" style="margin-top:0.25rem;"></div>
+        </div>
+      </div>
+
+      <!-- On-Device Speech & Diarization Models -->
+      <div style="border-top:1px solid var(--border-color);margin:1.25rem 0 1rem;padding-top:1.25rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;flex-wrap:wrap;gap:0.4rem;">
+          <h4 style="margin:0;font-size:0.95rem;display:flex;align-items:center;gap:0.4rem;">
+            <span>🧠</span> On-Device Models (Whisper &amp; Diarization)
+          </h4>
+          <span style="font-size:0.75rem;color:var(--text-muted);font-family:monospace;background:rgba(255,255,255,0.05);padding:0.15rem 0.45rem;border-radius:4px;" id="models-storage-dir-label" title="Stored in Library directory">~/Library/Application Support/Plaud Studio/models</span>
+        </div>
+        <div id="models-manager-list" style="display:flex;flex-direction:column;gap:0.75rem;">
+          <div style="text-align:center;padding:1rem;color:var(--text-muted);font-size:0.85rem;">Loading models status...</div>
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-top:0.75rem;">
+        <label>Speaker Diarization Engine</label>
+        <div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.25rem;">
+          <input type="checkbox" id="setting-diarization-enabled" checked style="width:auto;cursor:pointer;">
+          <label for="setting-diarization-enabled" style="margin:0;font-weight:normal;cursor:pointer;">
+            Enable Speaker Diarization (NVIDIA Nemotron-3 / Sortformer v3)
+          </label>
+        </div>
+        <div class="form-help" style="margin-top:0.35rem;">
+          🎯 Automatically segments and labels distinct speakers in conversation transcripts
+        </div>
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;gap:0.75rem;margin-top:1rem;">
+        <button id="btn-cancel-settings" class="btn">Cancel</button>
+        <button id="btn-save-settings" class="btn btn-primary">Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

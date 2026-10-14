@@ -1,0 +1,29 @@
+# Node dependencies
+node_modules/
+
+# Build artifacts
+dist/
+*.dmg
+*.zip
+*.blockmap
+
+# Local user databases & media
+data/*.db
+data/*.db-shm
+data/*.db-wal
+data/audio/*
+!data/audio/.gitkeep
+data/tmp/*
+!data/tmp/.gitkeep
+models/
+
+# Logs, scratch & OS files
+*.log
+.DS_Store
+scratch/
+
+# Local environment & secrets
+.env
+.env.*
+.env.local
+*.swp
