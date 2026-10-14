@@ -21,7 +21,7 @@ import {
   setSettings,
   getSetting
 } from './db.js';
-import { getCurrentUser, syncAllRecordings, downloadRecordingAudio, fetchRecordingCloudData } from './plaud.js';
+import { getCurrentUser, getPlaudAuthStatus, syncAllRecordings, downloadRecordingAudio, fetchRecordingCloudData } from './plaud.js';
 import { transcribeRecording } from './transcribe.js';
 import { summarizeRecording, curlRequest } from './summarize.js';
 import { logger, registerSSEClient, getGlobalStatus, setIdleStatus } from './logger.js';
@@ -85,6 +85,15 @@ app.get('/api/user', async (req, res) => {
   try {
     const user = await getCurrentUser();
     res.json({ success: true, user });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/plaud/status', async (req, res) => {
+  try {
+    const status = await getPlaudAuthStatus();
+    res.json({ success: true, ...status });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

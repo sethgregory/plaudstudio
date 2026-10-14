@@ -528,6 +528,12 @@ async function triggerSync() {
     if (data.success) {
       await loadRecordings();
       await loadStats();
+    } else {
+      if (data.error && (data.error.includes('tokens-mcp.json') || data.error.includes('Plaud login'))) {
+        alert('☁️ Plaud Credentials Needed\n\nNo Plaud token file was found at ~/.plaud/tokens-mcp.json.\n\nPlease run this command in your Terminal to authenticate via Plaud MCP:\n\n  npx -y @plaud-ai/mcp install\n\nOnce authorized, click "Sync Plaud" again.');
+      } else {
+        alert(`Sync failed: ${data.error || 'Unknown error'}`);
+      }
     }
   } catch (err) {
     alert(`Sync failed: ${err.message}`);
@@ -2023,6 +2029,9 @@ async function openSettingsModal() {
       toggleSettingsProviderFields();
     }
 
+    // Load Plaud MCP Credentials & Account status
+    await loadPlaudAuthStatus();
+
     // Load On-Device Models
     await loadModelsManager();
 
@@ -2070,6 +2079,53 @@ async function saveSettings() {
     alert('Settings saved successfully!');
   } catch (err) {
     alert(`Failed to save settings: ${err.message}`);
+  }
+}
+
+// ---------------- Plaud MCP & Account Credentials ---------------- //
+
+async function loadPlaudAuthStatus() {
+  const container = document.getElementById('plaud-auth-status-container');
+  if (!container) return;
+  try {
+    const res = await fetch('/api/plaud/status');
+    const data = await res.json();
+    if (data.connected && data.user) {
+      const u = data.user;
+      const displayName = u.nickname || u.email || 'Authenticated User';
+      const email = u.email ? `<span style="color:var(--text-muted);margin-left:0.4rem;">(${escapeHTML(u.email)})</span>` : '';
+      container.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;">
+          <div style="display:flex;align-items:center;gap:0.5rem;">
+            <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#10b981;"></span>
+            <span>Connected as <strong>${escapeHTML(displayName)}</strong>${email}</span>
+          </div>
+          <span class="badge" style="background:rgba(16,185,129,0.15);color:#10b981;font-size:0.75rem;padding:0.2rem 0.5rem;border-radius:4px;">OAuth Active</span>
+        </div>
+        <div style="margin-top:0.4rem;font-size:0.78rem;color:var(--text-muted);">
+          Credentials managed via <code>~/.plaud/tokens-mcp.json</code>. Tokens refresh automatically when expired.
+        </div>
+      `;
+    } else {
+      const errMsg = data.error || 'No active credentials found.';
+      container.innerHTML = `
+        <div style="display:flex;align-items:center;gap:0.5rem;color:#f59e0b;font-weight:600;">
+          <span>⚠️</span> Plaud Account Not Connected
+        </div>
+        <div style="margin-top:0.35rem;font-size:0.8rem;color:var(--text-muted);">
+          ${escapeHTML(errMsg)}
+        </div>
+        <div style="margin-top:0.6rem;background:rgba(0,0,0,0.3);padding:0.5rem 0.75rem;border-radius:6px;">
+          <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.25rem;">Run this one-time command in Terminal to log in via Plaud MCP:</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;">
+            <code style="font-size:0.82rem;color:#38bdf8;user-select:all;">npx -y @plaud-ai/mcp install</code>
+            <button type="button" class="btn" style="padding:0.15rem 0.5rem;font-size:0.75rem;" onclick="navigator.clipboard.writeText('npx -y @plaud-ai/mcp install'); alert('Copied setup command to clipboard!');">Copy</button>
+          </div>
+        </div>
+      `;
+    }
+  } catch (err) {
+    container.innerHTML = `<div style="color:var(--danger);font-size:0.8rem;">Error checking status: ${escapeHTML(err.message)}</div>`;
   }
 }
 

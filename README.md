@@ -90,7 +90,7 @@ All audio playback is synchronized to millisecond-accurate transcripts with clic
   - `whisper-cli` (whisper.cpp): `brew install whisper-cpp`
   - `uv` (fast Python package runner for speaker diarization): `brew install uv`
 - **Plaud Account**:
-  - Active Plaud account (`~/.plaud/tokens-mcp.json` or web credentials)
+  - Active Plaud account with MCP credentials in `~/.plaud/tokens-mcp.json` (see [Plaud MCP Setup](#-plaud-mcp--cloud-credentials-setup))
 
 ---
 
@@ -99,12 +99,22 @@ All audio playback is synchronized to millisecond-accurate transcripts with clic
 ### 1. Installation
 
 ```bash
-git clone <repo-url> plaud-studio
+git clone https://github.com/sethgregory/plaudstudio.git plaud-studio
 cd plaud-studio
 npm install
 ```
 
-### 2. Launching Plaud Studio
+### 2. Connect Your Plaud Account (1-Step Setup)
+
+Authenticate via the official Plaud MCP server to generate your local credentials file:
+
+```bash
+npx -y @plaud-ai/mcp install
+```
+
+This launches the official Plaud OAuth browser login and saves your secure tokens to `~/.plaud/tokens-mcp.json`.
+
+### 3. Launching Plaud Studio
 
 To run the desktop application with live hot-reloading:
 
@@ -118,7 +128,7 @@ To run only the backend server (accessible at `http://localhost:3300` in your we
 npm start
 ```
 
-### 3. Install to macOS Applications Folder
+### 4. Install to macOS Applications Folder
 
 To package and install Plaud Studio directly into `/Applications`:
 
@@ -127,6 +137,99 @@ npm run install:app
 ```
 
 You can now launch **Plaud Studio** from macOS Spotlight, Launchpad, or Finder!
+
+---
+
+## ☁️ Plaud MCP & Cloud Credentials Setup
+
+Plaud Studio integrates directly with the official **Plaud Model Context Protocol (MCP)** server ([`@plaud-ai/mcp`](https://www.npmjs.com/package/@plaud-ai/mcp)) to synchronize recordings, cloud summaries, and remote transcripts from your Plaud hardware devices without requiring manual cookie extraction or reverse-engineered API keys.
+
+### 1. Interactive 1-Command Login (Recommended)
+
+Run the official installer command in your Terminal:
+
+```bash
+npx -y @plaud-ai/mcp install
+```
+
+**How it works:**
+1. Detects supported AI desktop clients installed on your Mac (Claude Desktop, Cursor, Antigravity, etc.).
+2. Automatically opens your default web browser to the official Plaud OAuth authorization page (`https://platform.plaud.ai`).
+3. Once authorized, the local callback listener writes your OAuth tokens to:
+   ```
+   ~/.plaud/tokens-mcp.json
+   ```
+4. Plaud Studio immediately detects these credentials and displays your user profile and sync controls.
+
+### 2. Configuring Plaud MCP in AI Assistants
+
+You can also use Plaud MCP across your AI coding assistants and desktop agents:
+
+#### Claude Desktop
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
+```json
+{
+  "mcpServers": {
+    "plaud": {
+      "command": "npx",
+      "args": ["-y", "@plaud-ai/mcp@latest"]
+    }
+  }
+}
+```
+
+#### Antigravity / Gemini CLI
+Add to `~/.gemini/config/mcp_config.json`:
+```json
+{
+  "mcpServers": {
+    "plaud": {
+      "command": "npx",
+      "args": ["-y", "@plaud-ai/mcp@latest"]
+    }
+  }
+}
+```
+
+#### Cursor
+Open **Cursor Settings ➔ Features ➔ MCP ➔ Add New MCP Server**:
+- **Name**: `plaud`
+- **Type**: `command`
+- **Command**: `npx -y @plaud-ai/mcp@latest`
+
+Once configured, asking your AI assistant *"Log in to Plaud"* or triggering the `login` tool will launch the OAuth browser flow anytime.
+
+### 3. Credential Lifecycle & Automatic Refresh
+
+- **Credential File**: Stored outside the repository in `~/.plaud/tokens-mcp.json`.
+- **Automatic Token Refresh**: The Plaud Studio backend inspects `expires_at` before every request. If your `access_token` is expired or expiring within 60 seconds, Plaud Studio automatically exchanges the `refresh_token` against `https://platform.plaud.ai/developer/api/oauth/third-party/access-token/refresh` and writes the updated token back to disk. You never need to manually manage session tokens.
+- **In-App Health Check**: Open **Settings ⚙️ ➔ Plaud Cloud & MCP Credentials** to view your active connection state, verified account email, and token health.
+
+### 4. Manual / Headless Setup
+
+If deploying on a headless Mac or remote workstation, you can create `~/.plaud/tokens-mcp.json` manually:
+
+```bash
+mkdir -p ~/.plaud
+cat << 'EOF' > ~/.plaud/tokens-mcp.json
+{
+  "access_token": "YOUR_ACCESS_TOKEN",
+  "refresh_token": "YOUR_REFRESH_TOKEN",
+  "token_type": "Bearer",
+  "expires_at": 1770000000000
+}
+EOF
+chmod 600 ~/.plaud/tokens-mcp.json
+```
+
+### 5. Troubleshooting & Re-Authentication
+
+- **Session Revoked / 401 Unauthorized**: Run `npx -y @plaud-ai/mcp install` in Terminal to re-authorize.
+- **Verify Credentials File**: Run `ls -la ~/.plaud/tokens-mcp.json` or inspect keys:
+  ```bash
+  node -e "console.log(Object.keys(JSON.parse(fs.readFileSync(require('os').homedir() + '/.plaud/tokens-mcp.json'))))"
+  ```
+- **Sync Trigger**: Click **🔄 Sync Plaud** in the top navigation bar or sidebar to synchronize cloud recordings.
 
 ---
 

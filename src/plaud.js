@@ -7,7 +7,7 @@ import { upsertPlaudRecording, updateRecording, getRecording } from './db.js';
 import { logger } from './logger.js';
 import { enhanceMarkdownToHTML } from './summarize.js';
 
-const TOKEN_PATH = path.join(os.homedir(), '.plaud', 'tokens-mcp.json');
+export const TOKEN_PATH = path.join(os.homedir(), '.plaud', 'tokens-mcp.json');
 const API_BASE = 'https://platform.plaud.ai/developer/api';
 
 function getStoredTokens() {
@@ -95,6 +95,38 @@ async function plaudFetch(endpoint, options = {}) {
 
 export async function getCurrentUser() {
   return await plaudFetch('/open/third-party/users/current');
+}
+
+export async function getPlaudAuthStatus() {
+  const tokenExists = fs.existsSync(TOKEN_PATH);
+  if (!tokenExists) {
+    return {
+      connected: false,
+      tokenFileExists: false,
+      tokenPath: TOKEN_PATH,
+      user: null,
+      error: `Plaud credential file not found at ${TOKEN_PATH}. Run "npx -y @plaud-ai/mcp install" to log in.`
+    };
+  }
+
+  try {
+    const user = await getCurrentUser();
+    return {
+      connected: true,
+      tokenFileExists: true,
+      tokenPath: TOKEN_PATH,
+      user,
+      error: null
+    };
+  } catch (err) {
+    return {
+      connected: false,
+      tokenFileExists: true,
+      tokenPath: TOKEN_PATH,
+      user: null,
+      error: err.message
+    };
+  }
 }
 
 export async function listFiles(page = 1, pageSize = 50) {
