@@ -395,110 +395,131 @@
 
   <!-- Settings Modal -->
   <div class="modal-overlay" id="settings-modal-overlay">
-    <div class="settings-modal">
-      <div style="display:flex;justify-content:space-between;align-items:center;">
-        <h3>⚙️ Application Settings</h3>
+    <div class="settings-modal app-settings-modal">
+      <div class="settings-modal-header">
+        <h3 style="margin:0;font-size:1.15rem;display:flex;align-items:center;gap:0.5rem;">⚙️ Application Settings</h3>
         <button id="btn-close-settings" class="btn-icon">✕</button>
       </div>
 
-      <div class="form-group">
-        <label>AI Summarization Engine</label>
-        <select id="setting-llm-provider">
-          <option value="custom_api">🌐 Remote OpenAI-Compatible / LAN Server (e.g. localhost:8081)</option>
-          <option value="local_llama">💻 Local llama.cpp (Free, Private, Apple Silicon Metal GPU)</option>
-          <option value="gemini">✨ Google Gemini API</option>
-        </select>
+      <div class="settings-tabs">
+        <div class="settings-tab active" data-tab="ai"><span>🧠</span> AI Summarization</div>
+        <div class="settings-tab" data-tab="models"><span>🎙️</span> Models &amp; Diarization</div>
+        <div class="settings-tab" data-tab="plaud"><span>☁️</span> Plaud Cloud &amp; MCP</div>
       </div>
 
-      <div class="form-group" id="setting-group-local-model">
-        <label>Local LLM Model</label>
-        <select id="setting-local-model">
-          <!-- Populated dynamically with available .gguf models -->
-        </select>
-        <div class="form-help">Select from models detected on this machine.</div>
-      </div>
-
-      <div id="setting-group-api" style="display:none;flex-direction:column;gap:0.75rem;">
-        <div class="form-group">
-          <label>API Endpoint URL</label>
-          <input type="text" id="setting-api-url" placeholder="http://localhost:8081/v1">
-        </div>
-        <div class="form-group">
-          <label>API Key (Optional for local LAN / Ollama / llama.cpp servers)</label>
-          <input type="password" id="setting-api-key" placeholder="sk-...">
-        </div>
-        <div class="form-group">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem;">
-            <label style="margin:0;">Model Name</label>
-            <button type="button" id="btn-fetch-remote-models" class="btn" style="padding:0.2rem 0.6rem;font-size:0.75rem;">⚡ Fetch Models</button>
+      <div class="settings-modal-body">
+        <!-- Tab 1: AI Summarization -->
+        <div class="settings-tab-pane" data-tab="ai">
+          <div class="form-group">
+            <label>AI Summarization Engine</label>
+            <select id="setting-llm-provider">
+              <option value="custom_api">🌐 Remote OpenAI-Compatible / LAN Server (e.g. localhost:8081)</option>
+              <option value="local_llama">💻 Local llama.cpp (Free, Private, Apple Silicon Metal GPU)</option>
+              <option value="gemini">✨ Google Gemini API</option>
+            </select>
           </div>
-          <input type="text" id="setting-api-model" placeholder="Qwen3.8-27B-UD-IQ4_XS.gguf">
-          <select id="setting-remote-models-dropdown" style="display:none;margin-top:0.35rem;"></select>
-          <div class="form-help" id="remote-models-status" style="margin-top:0.25rem;"></div>
-        </div>
-      </div>
 
-      <div id="setting-group-gemini" style="display:none;flex-direction:column;gap:0.75rem;">
-        <div class="form-group">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem;">
-            <label style="margin:0;">Gemini API Key</label>
-            <button type="button" id="btn-fetch-gemini-models" class="btn" style="padding:0.2rem 0.6rem;font-size:0.75rem;">⚡ Refresh Models</button>
+          <div class="form-group" id="setting-group-local-model">
+            <label>Local LLM Model</label>
+            <select id="setting-local-model">
+              <!-- Populated dynamically with available .gguf models -->
+            </select>
+            <div class="form-help">Select from models detected on this machine.</div>
           </div>
-          <input type="password" id="setting-gemini-key" placeholder="AIza...">
-          <div class="form-help" id="gemini-key-status" style="margin-top:0.25rem;">Enter your Google AI Studio key to automatically load available models.</div>
+
+          <div id="setting-group-api" style="display:none;flex-direction:column;gap:0.75rem;">
+            <div class="form-group">
+              <label>API Endpoint URL</label>
+              <input type="text" id="setting-api-url" placeholder="http://localhost:8081/v1">
+            </div>
+            <div class="form-group">
+              <label>API Key (Optional for local LAN / Ollama / llama.cpp servers)</label>
+              <input type="password" id="setting-api-key" placeholder="sk-...">
+            </div>
+            <div class="form-group">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem;">
+                <label style="margin:0;">Model Name</label>
+                <button type="button" id="btn-fetch-remote-models" class="btn" style="padding:0.2rem 0.6rem;font-size:0.75rem;">⚡ Fetch Models</button>
+              </div>
+              <input type="text" id="setting-api-model" placeholder="Qwen3.8-27B-UD-IQ4_XS.gguf">
+              <select id="setting-remote-models-dropdown" style="display:none;margin-top:0.35rem;"></select>
+              <div class="form-help" id="remote-models-status" style="margin-top:0.25rem;"></div>
+            </div>
+          </div>
+
+          <div id="setting-group-gemini" style="display:none;flex-direction:column;gap:0.75rem;">
+            <div class="form-group">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem;">
+                <label style="margin:0;">Gemini API Key</label>
+                <button type="button" id="btn-fetch-gemini-models" class="btn" style="padding:0.2rem 0.6rem;font-size:0.75rem;">⚡ Refresh Models</button>
+              </div>
+              <input type="password" id="setting-gemini-key" placeholder="AIza...">
+              <div class="form-help" id="gemini-key-status" style="margin-top:0.25rem;">Enter your Google AI Studio key to automatically load available models.</div>
+            </div>
+            <div class="form-group">
+              <label>Gemini Model</label>
+              <select id="setting-gemini-model">
+                <option value="gemini-3-flash-preview">Gemini 3 Flash Preview (Recommended - Fast & Powerful)</option>
+                <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite (High Speed & Low Latency)</option>
+                <option value="gemini-3.8-flash">Gemini 3.8 Flash (Latest Flash)</option>
+                <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro Preview (Deep Reasoning)</option>
+              </select>
+              <div class="form-help" id="gemini-models-status" style="margin-top:0.25rem;"></div>
+            </div>
+          </div>
         </div>
-        <div class="form-group">
-          <label>Gemini Model</label>
-          <select id="setting-gemini-model">
-            <option value="gemini-3-flash-preview">Gemini 3 Flash Preview (Recommended - Fast & Powerful)</option>
-            <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite (High Speed & Low Latency)</option>
-            <option value="gemini-3.8-flash">Gemini 3.8 Flash (Latest Flash)</option>
-            <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro Preview (Deep Reasoning)</option>
-          </select>
-          <div class="form-help" id="gemini-models-status" style="margin-top:0.25rem;"></div>
+
+        <!-- Tab 2: Models & Diarization -->
+        <div class="settings-tab-pane" data-tab="models" style="display:none;">
+          <div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;flex-wrap:wrap;gap:0.4rem;">
+              <h4 style="margin:0;font-size:0.95rem;display:flex;align-items:center;gap:0.4rem;">
+                <span>🧠</span> On-Device Models (Whisper &amp; Diarization)
+              </h4>
+              <span style="font-size:0.75rem;color:var(--text-muted);font-family:monospace;background:rgba(255,255,255,0.05);padding:0.15rem 0.45rem;border-radius:4px;" id="models-storage-dir-label" title="Stored in Library directory">~/Library/Application Support/Plaud Studio/models</span>
+            </div>
+            <div id="models-manager-list" style="display:flex;flex-direction:column;gap:0.75rem;">
+              <div style="text-align:center;padding:1rem;color:var(--text-muted);font-size:0.85rem;">Loading models status...</div>
+            </div>
+          </div>
+
+          <div class="form-group" style="border-top:1px solid var(--border);margin-top:0.75rem;padding-top:1.25rem;">
+            <label>Speaker Diarization Engine</label>
+            <div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.25rem;">
+              <input type="checkbox" id="setting-diarization-enabled" checked style="width:auto;cursor:pointer;">
+              <label for="setting-diarization-enabled" style="margin:0;font-weight:normal;cursor:pointer;">
+                Enable Speaker Diarization (NVIDIA Nemotron-3 / Sortformer v3)
+              </label>
+            </div>
+            <div class="form-help" style="margin-top:0.35rem;">
+              🎯 Automatically segments and labels distinct speakers in conversation transcripts
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 3: Plaud Cloud & MCP -->
+        <div class="settings-tab-pane" data-tab="plaud" style="display:none;">
+          <div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;flex-wrap:wrap;gap:0.4rem;">
+              <h4 style="margin:0;font-size:0.95rem;display:flex;align-items:center;gap:0.4rem;">
+                <span>☁️</span> Plaud Cloud &amp; MCP Credentials
+              </h4>
+              <span style="font-size:0.75rem;color:var(--text-muted);font-family:monospace;background:rgba(255,255,255,0.05);padding:0.15rem 0.45rem;border-radius:4px;" title="Token file path">~/.plaud/tokens-mcp.json</span>
+            </div>
+            <div id="plaud-auth-status-container" style="background:var(--bg-secondary);padding:0.75rem 1rem;border-radius:8px;font-size:0.85rem;line-height:1.4;">
+              <div style="color:var(--text-muted);">Checking Plaud credentials...</div>
+            </div>
+          </div>
+
+          <div style="border-top:1px solid var(--border);margin-top:0.75rem;padding-top:1.25rem;font-size:0.85rem;color:var(--text-muted);line-height:1.6;">
+            <div style="font-weight:600;color:var(--text-main);margin-bottom:0.4rem;">ℹ️ Plaud Cloud Integration</div>
+            <div>Plaud Studio synchronizes your recordings, summaries, and transcripts with your Plaud hardware devices via the official <code>@plaud-ai/mcp</code> server.</div>
+            <div style="margin-top:0.5rem;">Tokens refresh automatically in the background. If you need to re-authenticate or connect AI assistants like Claude Desktop, Cursor, or Antigravity, refer to the <strong>README.md</strong> guide.</div>
+          </div>
         </div>
       </div>
 
-      <!-- Plaud Cloud Account & MCP Credentials -->
-      <div style="border-top:1px solid var(--border-color);margin:1.25rem 0 1rem;padding-top:1.25rem;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;flex-wrap:wrap;gap:0.4rem;">
-          <h4 style="margin:0;font-size:0.95rem;display:flex;align-items:center;gap:0.4rem;">
-            <span>☁️</span> Plaud Cloud &amp; MCP Credentials
-          </h4>
-          <span style="font-size:0.75rem;color:var(--text-muted);font-family:monospace;background:rgba(255,255,255,0.05);padding:0.15rem 0.45rem;border-radius:4px;" title="Token file path">~/.plaud/tokens-mcp.json</span>
-        </div>
-        <div id="plaud-auth-status-container" style="background:var(--bg-secondary);padding:0.75rem 1rem;border-radius:8px;font-size:0.85rem;line-height:1.4;">
-          <div style="color:var(--text-muted);">Checking Plaud credentials...</div>
-        </div>
-      </div>
-
-      <!-- On-Device Speech & Diarization Models -->
-      <div style="border-top:1px solid var(--border-color);margin:1.25rem 0 1rem;padding-top:1.25rem;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;flex-wrap:wrap;gap:0.4rem;">
-          <h4 style="margin:0;font-size:0.95rem;display:flex;align-items:center;gap:0.4rem;">
-            <span>🧠</span> On-Device Models (Whisper &amp; Diarization)
-          </h4>
-          <span style="font-size:0.75rem;color:var(--text-muted);font-family:monospace;background:rgba(255,255,255,0.05);padding:0.15rem 0.45rem;border-radius:4px;" id="models-storage-dir-label" title="Stored in Library directory">~/Library/Application Support/Plaud Studio/models</span>
-        </div>
-        <div id="models-manager-list" style="display:flex;flex-direction:column;gap:0.75rem;">
-          <div style="text-align:center;padding:1rem;color:var(--text-muted);font-size:0.85rem;">Loading models status...</div>
-        </div>
-      </div>
-
-      <div class="form-group" style="margin-top:0.75rem;">
-        <label>Speaker Diarization Engine</label>
-        <div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.25rem;">
-          <input type="checkbox" id="setting-diarization-enabled" checked style="width:auto;cursor:pointer;">
-          <label for="setting-diarization-enabled" style="margin:0;font-weight:normal;cursor:pointer;">
-            Enable Speaker Diarization (NVIDIA Nemotron-3 / Sortformer v3)
-          </label>
-        </div>
-        <div class="form-help" style="margin-top:0.35rem;">
-          🎯 Automatically segments and labels distinct speakers in conversation transcripts
-        </div>
-      </div>
-
-      <div style="display:flex;justify-content:flex-end;gap:0.75rem;margin-top:1rem;">
+      <div class="settings-modal-footer">
         <button id="btn-cancel-settings" class="btn">Cancel</button>
         <button id="btn-save-settings" class="btn btn-primary">Save Settings</button>
       </div>

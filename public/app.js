@@ -247,6 +247,13 @@ function initEventListeners() {
   document.getElementById('btn-cancel-settings').addEventListener('click', closeSettingsModal);
   document.getElementById('btn-save-settings').addEventListener('click', saveSettings);
   document.getElementById('setting-llm-provider').addEventListener('change', toggleSettingsProviderFields);
+
+  // Settings Tabs
+  document.querySelectorAll('.settings-tab').forEach((tab) => {
+    tab.addEventListener('click', () => {
+      selectSettingsTab(tab.dataset.tab);
+    });
+  });
   const fetchRemoteBtn = document.getElementById('btn-fetch-remote-models');
   if (fetchRemoteBtn) {
     fetchRemoteBtn.addEventListener('click', fetchRemoteModels);
@@ -2035,10 +2042,23 @@ async function openSettingsModal() {
     // Load On-Device Models
     await loadModelsManager();
 
+    // Ensure active tab pane is displayed
+    const activeTab = document.querySelector('.settings-tab.active');
+    selectSettingsTab(activeTab ? activeTab.dataset.tab : 'ai');
+
     document.getElementById('settings-modal-overlay').classList.add('open');
   } catch (err) {
     alert(`Failed to open settings: ${err.message}`);
   }
+}
+
+function selectSettingsTab(tabName) {
+  document.querySelectorAll('.settings-tab').forEach((t) => {
+    t.classList.toggle('active', t.dataset.tab === tabName);
+  });
+  document.querySelectorAll('.settings-tab-pane').forEach((p) => {
+    p.style.display = p.dataset.tab === tabName ? 'flex' : 'none';
+  });
 }
 
 function closeSettingsModal() {
