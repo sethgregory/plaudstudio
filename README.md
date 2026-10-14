@@ -49,7 +49,6 @@ All audio playback is synchronized to millisecond-accurate transcripts with clic
 - **Playback Controls**: Variable speed (0.75x, 1x, 1.25x, 1.5x, 2x), 15-second skip forward/back, and scrubber bar with buffered audio streaming.
 - **Non-Destructive Titles**: Rename recordings at will—Plaud Studio preserves your custom title while tracking the original hardware file title.
 - **Folder Organization**: Automatically mirrors folders from your Plaud Cloud account (e.g., `CHEM 131`, `Project Alpha`).
-- **Offline HTML Export**: Export self-contained single-file HTML reports complete with dark/light theme support, KaTeX math, audio metadata, print-to-PDF styles, and both Studio & Plaud Cloud summaries.
 
 ### 🧠 4. Local AI Summaries: Lectures & Work Meetings
 - **🎓 University Lectures**:
@@ -69,12 +68,36 @@ All audio playback is synchronized to millisecond-accurate transcripts with clic
   - **Google Gemini API**: Native integration with Gemini 2.5 Flash / Pro.
   - **OpenAI-Compatible**: Connect to Ollama, Groq, OpenRouter, or OpenAI endpoints.
 
-### 📐 5. Scientific Notation & KaTeX Equation Rendering
+### 📦 5. Comprehensive Export System (.md, .html, and Bulk ZIP)
+- **Obsidian & Notion Ready Markdown (`.md`)**:
+  - Exports clean Markdown files with YAML frontmatter (`title`, `date`, `duration_minutes`, `category`, `folders`, `source_id`, `exported_at`).
+  - Seamlessly importable into Obsidian vaults, Notion databases, Logseq, or version-controlled notes folders.
+  - Combines Studio lesson notes, Plaud Cloud summaries, and your personal annotations in a structured document.
+- **Standalone Offline HTML (`.html`)**:
+  - Self-contained single-file HTML reports complete with dark/light theme toggle, embedded KaTeX math stylesheets, print-to-PDF styles, and metadata header.
+  - Works anywhere without internet or server access.
+- **Bulk Archive ZIP Export (`📦 Export All`)**:
+  - Export all summaries across your library or scope to a specific folder (e.g., `CHEM 131`).
+  - Generates an organized `.zip` archive containing individual `.md` or `.html` files grouped by folder with a single click.
+
+### 🕸️ 6. Ask Studio & Multi-Summary Knowledge Graph
+- **Cross-Lecture / Multi-Recording Synthesis**:
+  - Ask questions across your entire library or scope them to a specific folder (e.g., "What are all the formulas covered in thermodynamics?", "Summarize all roadmap decisions from sprint meetings").
+  - Grounded in your recordings: The AI references facts from your lesson notes and generates direct answers with citations (`**["CHEM 131 - Lecture 14" - 2026-10-09]**`).
+  - **Clickable Citations**: Click any cited recording card in the Q&A results to jump immediately into that lecture's full notes and transcript reader.
+- **Knowledge Graph Explorer**:
+  - Automatically extracts terms, academic definitions, subtopics, decisions, and action items from every summary.
+  - Interactive concept cards show definitions, context snippets, and direct links to each recording where the entity is discussed.
+  - "Ask Studio" button on every concept card to instantly query cross-session connections.
+- **Multi-Engine Execution**:
+  - Runs with your configured AI provider: local Metal GPU `llama-cli` (default), custom LAN OpenAI-compatible endpoint, or Google Gemini API.
+
+### 📐 7. Scientific Notation & KaTeX Equation Rendering
 - **Full Offline KaTeX Engine**: Embedded directly in the application bundle—no internet required.
 - **Equations & Reactions**: Parses both inline expressions (`$E = mc^2$`) and display blocks (`$$\text{Moles} = \frac{\text{Mass}}{\text{Molar Mass}}$$`), including chemistry arrows (`\xrightarrow{}`), matrices, and Greek symbols.
 - **Print & Export Fidelity**: Equations render in both the interactive desktop reader and standalone HTML exports.
 
-### 🖥️ 6. Native macOS Desktop App & Real-Time HUD
+### 🖥️ 8. Native macOS Desktop App & Real-Time HUD
 - **Packaged App**: Runs as a first-class macOS citizen in `/Applications/Plaud Studio.app` with native menu bar controls and Dock icon.
 - **Activity HUD & Live Logs Drawer**: Real-time status badge ("Downloading", "Converting", "Transcribing", "Summarizing") and a slide-out live server log stream via Server-Sent Events (SSE).
 - **Hot-Reload Dev Mode**: Automatic UI hot-reloading and backend server restarting when editing files in development.

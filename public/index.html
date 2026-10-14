@@ -114,6 +114,14 @@
             <option value="name:ASC">Title: A-Z</option>
           </select>
 
+          <button id="btn-open-knowledge" class="btn" title="Ask AI questions across summaries or explore concepts in the Knowledge Graph">
+            <span>🧠</span> Ask Studio
+          </button>
+
+          <button id="btn-open-archive-export" class="btn" title="Export summaries as Markdown or HTML archive ZIP">
+            <span>📦</span> Export All
+          </button>
+
           <button id="btn-sync-top" class="btn btn-primary">
             <span>🔄</span> Sync Plaud
           </button>
@@ -216,9 +224,14 @@
           <button id="btn-pull-cloud" class="btn btn-sm" title="Fetch transcript and summary from Plaud Cloud">
             <span>☁️</span> Pull Cloud Data
           </button>
-          <button id="btn-export-html" class="btn btn-sm" title="Download standalone offline HTML file">
-            <span>📄</span> Export HTML
-          </button>
+          <div class="export-btn-group" style="display:inline-flex;border-radius:6px;overflow:hidden;border:1px solid var(--border);">
+            <button id="btn-export-md" class="btn btn-sm" style="border-radius:0;border:none;border-right:1px solid var(--border);" title="Export Obsidian & Notion compatible Markdown with YAML metadata">
+              <span>📝</span> .MD
+            </button>
+            <button id="btn-export-html" class="btn btn-sm" style="border-radius:0;border:none;" title="Download standalone offline HTML document with math and styles">
+              <span>🌐</span> .HTML
+            </button>
+          </div>
           <button id="btn-retranscribe" class="btn btn-sm" title="Re-run Whisper Speech-to-Text & Diarization">
             <span>🎙️</span> Re-Transcribe
           </button>
@@ -522,6 +535,193 @@
       <div class="settings-modal-footer">
         <button id="btn-cancel-settings" class="btn">Cancel</button>
         <button id="btn-save-settings" class="btn btn-primary">Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Knowledge Graph & Multi-Summary Q&A Modal -->
+  <div class="modal-overlay" id="knowledge-modal-overlay">
+    <div class="knowledge-modal">
+      <div class="knowledge-header">
+        <div class="knowledge-header-left">
+          <div class="knowledge-title">
+            <span class="knowledge-icon">🧠</span>
+            <div>
+              <h3>Ask Studio &amp; Knowledge Graph</h3>
+              <p class="knowledge-subtitle">Query insights, cross-reference concepts, and extract knowledge across your lesson notes.</p>
+            </div>
+          </div>
+        </div>
+        <div class="knowledge-header-right">
+          <div class="knowledge-scope-selector">
+            <label for="knowledge-folder-select">Scope:</label>
+            <select id="knowledge-folder-select" class="knowledge-select">
+              <option value="">🌐 All Summaries &amp; Folders</option>
+              <!-- Populated dynamically with folders -->
+            </select>
+          </div>
+          <button id="btn-close-knowledge" class="btn-icon" style="font-size:1.15rem;padding:0.35rem 0.6rem;" title="Close">✕</button>
+        </div>
+      </div>
+
+      <!-- Knowledge Tabs -->
+      <div class="knowledge-tabs-bar">
+        <button class="knowledge-tab-btn active" data-tab="ask">
+          <span>💬</span> Ask Questions
+        </button>
+        <button class="knowledge-tab-btn" data-tab="graph">
+          <span>🕸️</span> Knowledge Graph Explorer
+        </button>
+        <span class="knowledge-stat-pill" id="knowledge-stat-pill">Indexing summaries...</span>
+      </div>
+
+      <!-- Tab Content Area -->
+      <div class="knowledge-content-area">
+        <!-- Tab 1: Ask Questions -->
+        <div class="knowledge-tab-pane active" id="pane-knowledge-ask">
+          <div class="qa-input-section">
+            <div class="qa-prompt-chips" id="qa-prompt-chips">
+              <span class="prompt-chip" data-prompt="What are the key formulas and mathematical laws covered in these lectures?">📐 Key Formulas &amp; Laws</span>
+              <span class="prompt-chip" data-prompt="Summarize all decisions, project milestones, and action items.">📋 Action Items &amp; Decisions</span>
+              <span class="prompt-chip" data-prompt="What are the common core themes and concepts across all sessions?">🔗 Common Themes</span>
+              <span class="prompt-chip" data-prompt="Create a comprehensive study guide with potential exam questions based on these notes.">📝 Comprehensive Study Guide</span>
+            </div>
+
+            <div class="qa-input-box">
+              <textarea id="qa-query-input" rows="3" placeholder="Ask a question across your recordings (e.g. 'How does concentration affect dilution and what formulas were used?' or 'What did we decide about the roadmap?')... Press ⌘+Enter to ask"></textarea>
+              <div class="qa-input-footer">
+                <span class="qa-shortcut-hint">Tip: ⌘+Enter to submit</span>
+                <button id="btn-ask-knowledge" class="btn btn-primary">
+                  <span>✨</span> Ask Studio
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Answer & Results Area -->
+          <div class="qa-results-container" id="qa-results-container" style="display:none;">
+            <div class="qa-results-header">
+              <div class="qa-results-title">
+                <span class="sparkle-icon">✨</span>
+                <span>Studio Synthesis</span>
+                <span class="qa-scope-badge" id="qa-result-scope">All Folders</span>
+              </div>
+              <button id="btn-copy-answer" class="btn btn-sm" title="Copy response markdown">📋 Copy Answer</button>
+            </div>
+
+            <div class="qa-answer-markdown" id="qa-answer-markdown">
+              <!-- Rendered markdown with math formulas -->
+            </div>
+
+            <div class="qa-sources-section">
+              <div class="qa-sources-title">
+                <span>📚</span> Sources &amp; Citations (<span id="qa-sources-count">0</span>)
+              </div>
+              <div class="qa-sources-list" id="qa-sources-list">
+                <!-- Clickable source cards -->
+              </div>
+            </div>
+
+            <div class="qa-concepts-section" id="qa-concepts-section" style="display:none;">
+              <div class="qa-concepts-title">
+                <span>🏷️</span> Related Concepts &amp; Terms
+              </div>
+              <div class="qa-concepts-list" id="qa-concepts-list">
+                <!-- Concept tags -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Empty State -->
+          <div class="qa-empty-state" id="qa-empty-state">
+            <div class="qa-empty-icon">💡</div>
+            <h4>Cross-Lecture AI Synthesis</h4>
+            <p>Ask questions that span multiple recordings, lectures, or meetings. Studio pulls relevant concepts, connects facts across folders, and provides grounded answers with clickable source citations.</p>
+          </div>
+
+          <!-- Loading State -->
+          <div class="qa-loading-state" id="qa-loading-state" style="display:none;">
+            <div class="qa-loading-spinner"></div>
+            <div class="qa-loading-text">Synthesizing knowledge graph and reasoning across notes...</div>
+            <div class="qa-loading-subtext">Running with local Metal GPU / configured LLM</div>
+          </div>
+        </div>
+
+        <!-- Tab 2: Graph Explorer -->
+        <div class="knowledge-tab-pane" id="pane-knowledge-graph" style="display:none;">
+          <div class="graph-toolbar">
+            <div class="graph-search-wrap">
+              <input type="text" id="graph-search-input" placeholder="Filter concepts, terms, or topics...">
+              <span class="graph-search-clear" id="btn-clear-graph-search" style="display:none;">✕</span>
+            </div>
+            <div class="graph-stats-summary" id="graph-stats-summary">
+              Showing all extracted concepts
+            </div>
+          </div>
+
+          <div class="graph-cards-grid" id="graph-cards-grid">
+            <!-- Dynamically populated concept cards -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bulk / Archive Export Modal -->
+  <div class="modal-overlay" id="archive-export-modal-overlay">
+    <div class="archive-export-modal">
+      <div class="archive-export-header">
+        <div style="display:flex;align-items:center;gap:0.6rem;">
+          <span style="font-size:1.4rem;">📦</span>
+          <h3 style="margin:0;font-size:1.15rem;">Export Summaries Archive</h3>
+        </div>
+        <button id="btn-close-archive-export" class="btn-icon" style="font-size:1.15rem;padding:0.35rem 0.6rem;" title="Close">✕</button>
+      </div>
+
+      <div class="archive-export-body">
+        <p style="font-size:0.88rem;color:var(--text-muted);margin-bottom:1.25rem;line-height:1.5;">
+          Export your generated lesson notes, Plaud cloud summaries, and personal notes into a structured ZIP archive grouped by folder.
+        </p>
+
+        <div class="form-group" style="margin-bottom:1.25rem;">
+          <label for="archive-export-folder" style="font-weight:600;display:block;margin-bottom:0.4rem;font-size:0.88rem;">Select Scope / Folder:</label>
+          <select id="archive-export-folder" class="archive-select" style="width:100%;padding:0.6rem;background:var(--bg-input, #1e293b);border:1px solid var(--border);border-radius:6px;color:var(--text-main);font-size:0.9rem;">
+            <option value="">🌐 All Folders &amp; Recordings</option>
+            <!-- Dynamically populated with folders -->
+          </select>
+        </div>
+
+        <div class="form-group" style="margin-bottom:1.25rem;">
+          <label style="font-weight:600;display:block;margin-bottom:0.6rem;font-size:0.88rem;">Export Format:</label>
+          <div class="export-format-options" style="display:flex;flex-direction:column;gap:0.75rem;">
+            <label class="format-card selected" style="cursor:pointer;display:flex;align-items:flex-start;gap:0.75rem;padding:0.85rem;border:1px solid var(--primary);border-radius:8px;background:rgba(56,189,248,0.06);">
+              <input type="radio" name="export-format" value="md" checked style="margin-top:0.25rem;">
+              <div>
+                <strong style="display:block;font-size:0.92rem;color:var(--text-main);">📝 Markdown (.md) - Obsidian &amp; Notion Ready</strong>
+                <span style="font-size:0.8rem;color:var(--text-muted);display:block;margin-top:0.2rem;">Includes YAML frontmatter (tags, date, duration) and math formulas. Drag and drop directly into Obsidian vaults or Notion workspaces.</span>
+              </div>
+            </label>
+
+            <label class="format-card" style="cursor:pointer;display:flex;align-items:flex-start;gap:0.75rem;padding:0.85rem;border:1px solid var(--border);border-radius:8px;background:rgba(255,255,255,0.02);">
+              <input type="radio" name="export-format" value="html" style="margin-top:0.25rem;">
+              <div>
+                <strong style="display:block;font-size:0.92rem;color:var(--text-main);">🌐 Offline Standalone HTML (.html)</strong>
+                <span style="font-size:0.8rem;color:var(--text-muted);display:block;margin-top:0.2rem;">Self-contained HTML documents with embedded styling, dark/light toggle, and rendered KaTeX formulas. Opens in any web browser without internet.</span>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div id="archive-count-info" style="font-size:0.82rem;color:var(--text-muted);background:var(--bg-secondary);padding:0.6rem 0.85rem;border-radius:6px;display:flex;align-items:center;gap:0.5rem;">
+          <span>ℹ️</span> <span id="archive-count-text">Calculating exportable summaries...</span>
+        </div>
+      </div>
+
+      <div class="archive-export-footer" style="padding:1rem 1.25rem;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:0.75rem;">
+        <button id="btn-cancel-archive-export" class="btn">Cancel</button>
+        <button id="btn-download-archive" class="btn btn-primary" style="display:flex;align-items:center;gap:0.4rem;">
+          <span>⬇️</span> Download ZIP Archive
+        </button>
       </div>
     </div>
   </div>

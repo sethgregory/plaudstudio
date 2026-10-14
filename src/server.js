@@ -23,7 +23,9 @@ import {
 } from './db.js';
 import { getCurrentUser, getPlaudAuthStatus, syncAllRecordings, downloadRecordingAudio, fetchRecordingCloudData } from './plaud.js';
 import { transcribeRecording } from './transcribe.js';
-import { summarizeRecording, curlRequest } from './summarize.js';
+import { summarizeRecording, curlRequest, generateExportMarkdown, generateStandaloneHTML, enhanceMarkdownToHTML } from './summarize.js';
+import { buildKnowledgeGraph, queryKnowledgeGraphWithLLM } from './knowledge.js';
+import { ZipArchive } from 'archiver';
 import { logger, registerSSEClient, getGlobalStatus, setIdleStatus } from './logger.js';
 
 import { AUDIO_DIR } from './config.js';
@@ -397,161 +399,126 @@ app.get('/api/recordings/:id/export/html', (req, res) => {
     const rec = getRecording(req.params.id);
     if (!rec) return res.status(404).send('Recording not found');
 
-    const durationMin = (rec.duration / 60000).toFixed(1);
-    const dateFormatted = new Date(rec.start_at || rec.created_at).toLocaleString();
-    const folderList = parseFolders(rec.project_or_class);
-
-    const standaloneHTML = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>${escapeHTML(rec.name)} - Notes</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/katex.min.css">
-  <style>
-    :root {
-      --bg: #0f172a;
-      --card-bg: #1e293b;
-      --text: #f8fafc;
-      --text-muted: #94a3b8;
-      --primary: #38bdf8;
-      --accent: #818cf8;
-      --border: #334155;
-      --table-border: #475569;
-    }
-    @media (prefers-color-scheme: light) {
-      :root {
-        --bg: #f8fafc;
-        --card-bg: #ffffff;
-        --text: #0f172a;
-        --text-muted: #64748b;
-        --primary: #0284c7;
-        --accent: #4f46e5;
-        --border: #e2e8f0;
-        --table-border: #cbd5e1;
-      }
-    }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      line-height: 1.7;
-      color: var(--text);
-      background-color: var(--bg);
-      margin: 0;
-      padding: 2rem 1rem;
-    }
-    .container {
-      max-width: 860px;
-      margin: 0 auto;
-      background: var(--card-bg);
-      padding: 3rem;
-      border-radius: 1rem;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-      border: 1px solid var(--border);
-    }
-    header {
-      border-bottom: 2px solid var(--border);
-      padding-bottom: 1.5rem;
-      margin-bottom: 2rem;
-    }
-    .badge {
-      display: inline-block;
-      padding: 0.25rem 0.75rem;
-      border-radius: 9999px;
-      font-size: 0.85rem;
-      font-weight: 600;
-      background: rgba(56, 189, 248, 0.15);
-      color: var(--primary);
-      margin-bottom: 0.5rem;
-    }
-    .meta-bar {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 1.5rem;
-      font-size: 0.95rem;
-      color: var(--text-muted);
-      margin-top: 0.5rem;
-    }
-    h1, h2, h3 { color: var(--text); font-weight: 700; }
-    h1 { font-size: 2rem; margin-top: 0.5rem; margin-bottom: 0.5rem; }
-    h2 { font-size: 1.4rem; margin-top: 2rem; border-bottom: 1px solid var(--border); padding-bottom: 0.4rem; }
-    h3 { font-size: 1.15rem; margin-top: 1.5rem; color: var(--primary); }
-    table { width: 100%; border-collapse: collapse; margin: 1.5rem 0; font-size: 0.95rem; }
-    th, td { border: 1px solid var(--table-border); padding: 0.75rem 1rem; text-align: left; }
-    th { background: rgba(56, 189, 248, 0.08); font-weight: 600; }
-    blockquote {
-      border-left: 4px solid var(--primary);
-      margin: 1.5rem 0;
-      padding: 0.75rem 1.25rem;
-      background: rgba(56, 189, 248, 0.05);
-      border-radius: 0 0.5rem 0.5rem 0;
-    }
-    .print-btn {
-      float: right;
-      padding: 0.5rem 1rem;
-      background: var(--primary);
-      color: #fff;
-      border: none;
-      border-radius: 0.5rem;
-      cursor: pointer;
-      font-weight: 600;
-    }
-    .katex-display {
-      display: block;
-      margin: 1.25rem 0;
-      padding: 0.75rem 1rem;
-      background: rgba(56, 189, 248, 0.05);
-      border: 1px solid var(--border);
-      border-radius: 0.5rem;
-      overflow-x: auto;
-      overflow-y: hidden;
-      text-align: center;
-    }
-    .katex { font-size: 1.05em; }
-    @media print {
-      body { background: #fff; color: #000; padding: 0; }
-      .container { box-shadow: none; border: none; padding: 0; max-width: 100%; }
-      .print-btn { display: none; }
-    }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <button class="print-btn" onclick="window.print()">Print / PDF</button>
-    <header>
-      ${folderList.length > 0 ? `<div style="margin-bottom: 0.5rem;">${folderList.map(f => `<span class="badge" style="background: rgba(129, 140, 248, 0.15); color: var(--accent); margin-right: 0.5rem;">📁 ${escapeHTML(f)}</span>`).join('')}</div>` : ''}
-      <h1>${escapeHTML(rec.name)}</h1>
-      <div class="meta-bar">
-        <span>📅 ${dateFormatted}</span>
-        <span>⏱️ ${durationMin} minutes</span>
-        <span>🆔 ${escapeHTML(rec.id)}</span>
-      </div>
-    </header>
-
-    <main class="content">
-      ${rec.summary_html ? rec.summary_html : (rec.plaud_summary_html || '<p><em>No summary has been generated for this recording yet.</em></p>')}
-      ${rec.summary_html && rec.plaud_summary_html ? `
-      <section style="margin-top: 3rem; padding-top: 2rem; border-top: 2px dashed var(--border);">
-        <h2 style="color: var(--primary);">☁️ Plaud Cloud Summary</h2>
-        ${rec.plaud_summary_html}
-      </section>` : ''}
-    </main>
-
-    ${rec.user_notes ? `
-    <section style="margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--border);">
-      <h3>Personal Notes</h3>
-      <p>${escapeHTML(rec.user_notes)}</p>
-    </section>` : ''}
-  </div>
-</body>
-</html>`;
+    const standaloneHTML = generateStandaloneHTML(rec);
+    const safeName = (rec.name || 'recording').replace(/[\\/:*?"<>|]/g, '_');
+    const isDownload = req.query.download === '1' || req.query.download === 'true';
 
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(rec.name)}.html"`);
-    res.send(standaloneHTML);
+    res.setHeader('Content-Disposition', `${isDownload ? 'attachment' : 'inline'}; filename="${encodeURIComponent(safeName)}.html"`);
+    return res.send(standaloneHTML);
   } catch (err) {
     res.status(500).send(`Export failed: ${err.message}`);
   }
 });
+
+// Export single recording as Markdown (.md)
+app.get('/api/recordings/:id/export/md', (req, res) => {
+  try {
+    const rec = getRecording(req.params.id);
+    if (!rec) return res.status(404).send('Recording not found');
+
+    const mdContent = generateExportMarkdown(rec);
+    const safeName = (rec.name || 'recording').replace(/[\\/:*?"<>|]/g, '_');
+
+    res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(safeName)}.md"`);
+    res.send(mdContent);
+  } catch (err) {
+    res.status(500).send(`Export failed: ${err.message}`);
+  }
+});
+
+// Bulk Export Archive (All summaries or scoped by folder as .zip)
+app.get('/api/export/archive', async (req, res) => {
+  try {
+    const { folder, format = 'md' } = req.query;
+    const allRecs = listRecordings();
+    const filtered = allRecs.filter((r) => {
+      if (folder && folder !== 'all') {
+        const folders = parseFolders(r.project_or_class);
+        return folders.includes(folder);
+      }
+      return true;
+    });
+
+    const withSummaries = filtered.filter(
+      (r) => r.summary_markdown || r.plaud_summary_markdown || r.summary_html || r.plaud_summary_html
+    );
+
+    if (withSummaries.length === 0) {
+      return res.status(404).json({ success: false, error: 'No recordings with summaries found to export.' });
+    }
+
+    const archive = new ZipArchive();
+    const folderSlug = folder && folder !== 'all' ? folder.replace(/[^a-zA-Z0-9_-]/g, '_') : 'all_summaries';
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const zipFilename = `plaud_${folderSlug}_${format}_${timestamp}.zip`;
+
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${zipFilename}"`);
+
+    archive.pipe(res);
+
+    withSummaries.forEach((rec) => {
+      const safeName = (rec.name || rec.id).replace(/[\\/:*?"<>|]/g, '_');
+      const folders = parseFolders(rec.project_or_class);
+      const folderSubdir = (folders[0] || 'General').replace(/[\\/:*?"<>|]/g, '_');
+      const basePath = folder && folder !== 'all' ? '' : `${folderSubdir}/`;
+
+      if (format === 'html') {
+        const html = generateStandaloneHTML(rec);
+        archive.append(html, { name: `${basePath}${safeName}.html` });
+      } else {
+        const md = generateExportMarkdown(rec);
+        archive.append(md, { name: `${basePath}${safeName}.md` });
+      }
+    });
+
+    await archive.finalize();
+  } catch (err) {
+    logger.error(`Archive export failed: ${err.message}`);
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  }
+});
+
+// ----------------- KNOWLEDGE GRAPH & LLM Q&A ----------------- //
+
+// Get Knowledge Graph nodes and edges (optionally scoped to a folder)
+app.get('/api/knowledge/graph', (req, res) => {
+  try {
+    const { folder } = req.query;
+    const allRecs = listRecordings();
+    const withSummaries = allRecs.filter(r => r.summary_markdown || r.plaud_summary_markdown);
+    const scoped = withSummaries.filter((r) => {
+      if (folder && folder !== 'all') {
+        const folders = parseFolders(r.project_or_class);
+        return folders.includes(folder);
+      }
+      return true;
+    });
+
+    const graph = buildKnowledgeGraph(scoped);
+    res.json({ success: true, ...graph });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Query Knowledge Graph & Summaries using the LLM
+app.post('/api/knowledge/query', async (req, res) => {
+  try {
+    const { query, folder, engine } = req.body || {};
+    const result = await queryKnowledgeGraphWithLLM({ query, folder, engine });
+    const answerHtml = enhanceMarkdownToHTML(result.answer || '');
+    res.json({ success: true, answerHtml, ...result });
+  } catch (err) {
+    logger.error(`Knowledge query error: ${err.message}`);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 
 function escapeHTML(str) {
   if (!str) return '';

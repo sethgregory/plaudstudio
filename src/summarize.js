@@ -448,6 +448,301 @@ function parseThinkingAndContent(rawText) {
   return { reasoning, content };
 }
 
+export async function runLLM({ systemPrompt, userPrompt, engine, contextTag = 'llm' }) {
+  const provider = engine && engine !== 'default' ? engine : getSetting('llm_provider', 'custom_api');
+  let rawOutput = '';
+  let extractedReasoning = '';
+
+  if (provider === 'gemini') {
+    const apiKey = getSetting('gemini_api_key');
+    if (!apiKey) throw new Error('Gemini API key is not configured in settings.');
+    const geminiModel = getSetting('gemini_model', 'gemini-3-flash-preview');
+    logger.llm(`[${contextTag}] Sending prompt to Google Gemini (${geminiModel})...`);
+    const res = await callGemini(apiKey, systemPrompt, userPrompt, geminiModel);
+    rawOutput = res.content;
+    extractedReasoning = res.reasoning;
+    logger.llm(`[${contextTag}] Gemini response received (${rawOutput.length} chars).`);
+  } else if (provider === 'custom_api' || provider === 'remote_api') {
+    const apiUrl = getSetting('custom_api_url', 'http://localhost:8081/v1');
+    const apiKey = getSetting('custom_api_key', '');
+    const model = getSetting('custom_api_model', '');
+    logger.llm(`[${contextTag}] Sending prompt to remote LLM server at ${apiUrl} (${model})...`);
+    const res = await callOpenAICompatible(apiUrl, apiKey, model, systemPrompt, userPrompt);
+    rawOutput = res.content;
+    extractedReasoning = res.reasoning;
+    logger.llm(`[${contextTag}] Remote API response received (${rawOutput.length} chars).`);
+  } else {
+    // Local Llama via llama-cli
+    const localModel = getSetting(
+      'local_model_path',
+      path.join(MODELS_DIR, 'Qwen3.5-4B-Q4_K_M.gguf')
+    );
+    if (!fs.existsSync(localModel)) {
+      throw new Error(`Local model not found at: ${localModel}`);
+    }
+
+    const tmpId = 'llm_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+    const promptFile = path.join(TMP_DIR, `${tmpId}_prompt.txt`);
+    const fullLlamaPrompt = `<|im_start|>system\n${systemPrompt}<|im_end|>\n<|im_start|>user\n${userPrompt}<|im_end|>\n<|im_start|>assistant\n`;
+    fs.writeFileSync(promptFile, fullLlamaPrompt, 'utf8');
+
+    const estPromptTokens = Math.ceil(fullLlamaPrompt.length / 3.0);
+    const targetCtx = Math.max(65536, Math.min(131072, Math.pow(2, Math.ceil(Math.log2(estPromptTokens + 16384)))));
+    logger.llm(`[${contextTag}] Running llama-cli Metal GPU inference (ctx: ${targetCtx})...`);
+
+    try {
+      rawOutput = await runLlamaCli(promptFile, localModel, targetCtx);
+      if (rawOutput.includes('exceeds the available context size')) {
+        throw new Error('Prompt exceeds the model context size limit.');
+      }
+      logger.llm(`[${contextTag}] llama-cli generated output (${rawOutput.length} chars).`);
+    } finally {
+      if (fs.existsSync(promptFile)) fs.unlinkSync(promptFile);
+    }
+  }
+
+  const { reasoning: parsedReasoning, content } = parseThinkingAndContent(rawOutput);
+  const reasoning = extractedReasoning || parsedReasoning;
+  return { reasoning, content: content || rawOutput };
+}
+
+export function generateExportMarkdown(rec) {
+  if (!rec) return '';
+  const dateFormatted = new Date(rec.start_at || rec.created_at || Date.now()).toISOString();
+  const durationMin = rec.duration ? (rec.duration / 60000).toFixed(1) : '0';
+  let folders = [];
+  try {
+    const parsed = JSON.parse(rec.project_or_class || '[]');
+    folders = Array.isArray(parsed) ? parsed : [parsed];
+  } catch (_) {
+    if (rec.project_or_class) folders = [rec.project_or_class];
+  }
+
+  const frontmatter = [
+    '---',
+    `title: ${JSON.stringify(rec.name || 'Untitled')}`,
+    `date: ${dateFormatted}`,
+    `duration_minutes: ${durationMin}`,
+    `category: ${JSON.stringify(rec.category || 'unassigned')}`,
+    `folders: ${JSON.stringify(folders)}`,
+    `source_id: ${JSON.stringify(rec.id)}`,
+    `exported_at: ${new Date().toISOString()}`,
+    `generator: "Plaud Studio"`,
+    '---',
+    ''
+  ].join('\n');
+
+  let body = '';
+  if (rec.summary_markdown && rec.summary_markdown.trim()) {
+    body += rec.summary_markdown.trim();
+  }
+
+  if (rec.plaud_summary_markdown && rec.plaud_summary_markdown.trim()) {
+    if (body) {
+      body += '\n\n---\n\n## ☁️ Plaud Cloud Summary\n\n' + rec.plaud_summary_markdown.trim();
+    } else {
+      body += rec.plaud_summary_markdown.trim();
+    }
+  }
+
+  if (!body) {
+    body = `*No summary has been generated for this recording yet.*`;
+  }
+
+  if (rec.user_notes && rec.user_notes.trim()) {
+    body += '\n\n---\n\n## 📝 Personal Notes\n\n' + rec.user_notes.trim();
+  }
+
+  return frontmatter + body + '\n';
+}
+
+function escapeHtmlEntities(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+export function generateStandaloneHTML(rec) {
+  if (!rec) return '';
+  const durationMin = (rec.duration / 60000).toFixed(1);
+  const dateFormatted = new Date(rec.start_at || rec.created_at).toLocaleString();
+  let folderList = [];
+  try {
+    const parsed = JSON.parse(rec.project_or_class || '[]');
+    folderList = Array.isArray(parsed) ? parsed : [parsed];
+  } catch (_) {
+    if (rec.project_or_class) folderList = [rec.project_or_class];
+  }
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>${escapeHtmlEntities(rec.name)} - Notes</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/katex.min.css">
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --primary: #38bdf8;
+      --accent: #818cf8;
+      --border: #334155;
+      --table-border: #475569;
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f8fafc;
+        --card-bg: #ffffff;
+        --text: #0f172a;
+        --text-muted: #64748b;
+        --primary: #0284c7;
+        --accent: #4f46e5;
+        --border: #e2e8f0;
+        --table-border: #cbd5e1;
+      }
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.7;
+      color: var(--text);
+      background-color: var(--bg);
+      margin: 0;
+      padding: 2rem 1rem;
+    }
+    .container {
+      max-width: 860px;
+      margin: 0 auto;
+      background: var(--card-bg);
+      padding: 3rem;
+      border-radius: 1rem;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+      border: 1px solid var(--border);
+    }
+    header {
+      border-bottom: 2px solid var(--border);
+      padding-bottom: 1.5rem;
+      margin-bottom: 2rem;
+    }
+    h1 {
+      font-size: 2.2rem;
+      margin: 0 0 0.5rem 0;
+      line-height: 1.25;
+      color: var(--text);
+    }
+    .meta-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+    .badge {
+      display: inline-block;
+      padding: 0.2rem 0.6rem;
+      border-radius: 9999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+    .content h2 {
+      font-size: 1.5rem;
+      margin-top: 2rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.5rem;
+      color: var(--primary);
+    }
+    .content h3 {
+      font-size: 1.2rem;
+      margin-top: 1.5rem;
+    }
+    .content table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1.5rem 0;
+    }
+    .content th, .content td {
+      border: 1px solid var(--table-border);
+      padding: 0.75rem 1rem;
+      text-align: left;
+    }
+    .content th {
+      background-color: rgba(56, 189, 248, 0.1);
+    }
+    .content blockquote {
+      border-left: 4px solid var(--primary);
+      margin: 1.5rem 0;
+      padding-left: 1rem;
+      color: var(--text-muted);
+      font-style: italic;
+    }
+    .print-btn {
+      float: right;
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      cursor: pointer;
+      font-weight: 600;
+      transition: opacity 0.2s;
+    }
+    .print-btn:hover { opacity: 0.9; }
+    .katex-display {
+      margin: 1.25rem 0;
+      padding: 0.75rem 1rem;
+      background: rgba(56, 189, 248, 0.05);
+      border: 1px solid var(--border);
+      border-radius: 0.5rem;
+      overflow-x: auto;
+      overflow-y: hidden;
+      text-align: center;
+    }
+    .katex { font-size: 1.05em; }
+    @media print {
+      body { background: #fff; color: #000; padding: 0; }
+      .container { box-shadow: none; border: none; padding: 0; max-width: 100%; }
+      .print-btn { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <button class="print-btn" onclick="window.print()">Print / PDF</button>
+    <header>
+      ${folderList.length > 0 ? `<div style="margin-bottom: 0.5rem;">${folderList.map(f => `<span class="badge" style="background: rgba(129, 140, 248, 0.15); color: var(--accent); margin-right: 0.5rem;">📁 ${escapeHtmlEntities(f)}</span>`).join('')}</div>` : ''}
+      <h1>${escapeHtmlEntities(rec.name)}</h1>
+      <div class="meta-bar">
+        <span>📅 ${dateFormatted}</span>
+        <span>⏱️ ${durationMin} minutes</span>
+        <span>🆔 ${escapeHtmlEntities(rec.id)}</span>
+      </div>
+    </header>
+
+    <main class="content">
+      ${rec.summary_html ? rec.summary_html : (rec.plaud_summary_html || '<p><em>No summary has been generated for this recording yet.</em></p>')}
+      ${rec.summary_html && rec.plaud_summary_html ? `
+      <section style="margin-top: 3rem; padding-top: 2rem; border-top: 2px dashed var(--border);">
+        <h2 style="color: var(--primary);">☁️ Plaud Cloud Summary</h2>
+        ${rec.plaud_summary_html}
+      </section>` : ''}
+    </main>
+
+    ${rec.user_notes ? `
+    <section style="margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--border);">
+      <h3>Personal Notes</h3>
+      <p>${escapeHtmlEntities(rec.user_notes)}</p>
+    </section>` : ''}
+  </div>
+</body>
+</html>`;
+}
+
 export async function summarizeRecording(recordingId, { category, customInstructions, engine } = {}, onProgress = null) {
   const recording = getRecording(recordingId);
   if (!recording) {
@@ -477,61 +772,14 @@ export async function summarizeRecording(recordingId, { category, customInstruct
     customInstructions
   );
 
-  let rawOutput = '';
-  let extractedReasoning = '';
-
   try {
-    if (provider === 'gemini') {
-      const apiKey = getSetting('gemini_api_key');
-      if (!apiKey) throw new Error('Gemini API key is not configured in settings.');
-      const geminiModel = getSetting('gemini_model', 'gemini-3-flash-preview');
-      logger.llm(`Sending prompt to Google Gemini (${geminiModel})...`);
-      const res = await callGemini(apiKey, systemPrompt, userPrompt, geminiModel);
-      rawOutput = res.content;
-      extractedReasoning = res.reasoning;
-      logger.llm(`Gemini response received (${rawOutput.length} chars).`);
-    } else if (provider === 'custom_api' || provider === 'remote_api') {
-      const apiUrl = getSetting('custom_api_url', 'http://localhost:8081/v1');
-      const apiKey = getSetting('custom_api_key', '');
-      const model = getSetting('custom_api_model', '');
-      logger.llm(`Sending prompt to remote LLM server at ${apiUrl} (${model})...`);
-      const res = await callOpenAICompatible(apiUrl, apiKey, model, systemPrompt, userPrompt);
-      rawOutput = res.content;
-      extractedReasoning = res.reasoning;
-      logger.llm(`Remote API response received (${rawOutput.length} chars).`);
-    } else {
-      // Local Llama via llama-cli
-      const localModel = getSetting(
-        'local_model_path',
-        path.join(MODELS_DIR, 'Qwen3.5-4B-Q4_K_M.gguf')
-      );
-      if (!fs.existsSync(localModel)) {
-        throw new Error(`Local model not found at: ${localModel}`);
-      }
+    const { reasoning, content } = await runLLM({
+      systemPrompt,
+      userPrompt,
+      engine: provider,
+      contextTag: recording.name
+    });
 
-      // Write prompt to tmp file to handle large transcripts without shell arg limits
-      const promptFile = path.join(TMP_DIR, `${recordingId}_prompt.txt`);
-      const fullLlamaPrompt = `<|im_start|>system\n${systemPrompt}<|im_end|>\n<|im_start|>user\n${userPrompt}<|im_end|>\n<|im_start|>assistant\n`;
-      fs.writeFileSync(promptFile, fullLlamaPrompt, 'utf8');
-
-      // Dynamically calculate context size: prompt tokens + 16,384 output tokens
-      const estPromptTokens = Math.ceil(fullLlamaPrompt.length / 3.0);
-      const targetCtx = Math.max(65536, Math.min(131072, Math.pow(2, Math.ceil(Math.log2(estPromptTokens + 16384)))));
-      logger.llm(`Running llama-cli Metal GPU inference (ctx: ${targetCtx})...`);
-
-      try {
-        rawOutput = await runLlamaCli(promptFile, localModel, targetCtx);
-        if (rawOutput.includes('exceeds the available context size')) {
-          throw new Error('Transcript exceeds the model context size limit.');
-        }
-        logger.llm(`llama-cli generated output (${rawOutput.length} chars).`);
-      } finally {
-        if (fs.existsSync(promptFile)) fs.unlinkSync(promptFile);
-      }
-    }
-
-    const { reasoning: parsedReasoning, content } = parseThinkingAndContent(rawOutput);
-    const reasoning = extractedReasoning || parsedReasoning;
     if (!content || content.length < 50) {
       throw new Error('LLM failed to generate a valid summary. Output was empty or too short.');
     }

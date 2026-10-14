@@ -107,6 +107,12 @@ function initEventListeners() {
   document.getElementById('btn-sync').addEventListener('click', triggerSync);
   document.getElementById('btn-sync-top').addEventListener('click', triggerSync);
 
+  // Knowledge & Archive Export Modals
+  const btnOpenKnowledge = document.getElementById('btn-open-knowledge');
+  if (btnOpenKnowledge) btnOpenKnowledge.addEventListener('click', () => openKnowledgeModal());
+  const btnOpenArchive = document.getElementById('btn-open-archive-export');
+  if (btnOpenArchive) btnOpenArchive.addEventListener('click', () => openArchiveExportModal());
+
   // Search and Sort
   document.getElementById('search-input').addEventListener('input', (e) => {
     currentSearch = e.target.value.toLowerCase();
@@ -159,7 +165,10 @@ function initEventListeners() {
   });
 
   document.getElementById('btn-close-reader').addEventListener('click', closeReaderModal);
-  document.getElementById('btn-export-html').addEventListener('click', exportStandaloneHTML);
+  const btnExportMd = document.getElementById('btn-export-md');
+  if (btnExportMd) btnExportMd.addEventListener('click', exportMarkdown);
+  const btnExportHtml = document.getElementById('btn-export-html');
+  if (btnExportHtml) btnExportHtml.addEventListener('click', exportStandaloneHTML);
   document.getElementById('btn-resummarize').addEventListener('click', openSummarizeModal);
   const btnRetranscribe = document.getElementById('btn-retranscribe');
   if (btnRetranscribe) btnRetranscribe.addEventListener('click', triggerRetranscribeCurrent);
@@ -366,6 +375,10 @@ function initEventListeners() {
       }
     }
   });
+
+  // Initialize Knowledge Graph and Archive Export features
+  initArchiveExport();
+  initKnowledgeModal();
 }
 
 // ---------------- Data Fetching ---------------- //
@@ -1705,7 +1718,12 @@ window.triggerProcessCurrent = async function () {
 
 function exportStandaloneHTML() {
   if (!activeRecordingId) return;
-  window.open(`/api/recordings/${activeRecordingId}/export/html`, '_blank');
+  window.open(`/api/recordings/${activeRecordingId}/export/html?download=1`, '_blank');
+}
+
+function exportMarkdown() {
+  if (!activeRecordingId) return;
+  window.open(`/api/recordings/${activeRecordingId}/export/md`, '_blank');
 }
 
 async function pullCloudDataForCurrent() {
@@ -2541,6 +2559,457 @@ function startPolling() {
       }
     }
   }, 3000);
+}
+
+// ---------------- Archive Export ---------------- //
+
+function openArchiveExportModal(selectedFolder = '') {
+  const overlay = document.getElementById('archive-export-modal-overlay');
+  if (!overlay) return;
+
+  const currentVal = selectedFolder || (currentFilter && currentFilter.project_or_class !== 'all' ? currentFilter.project_or_class : '');
+  const folderSelect = document.getElementById('archive-export-folder');
+  if (folderSelect) {
+    let opts = '<option value="">🌐 All Folders &amp; Recordings</option>';
+    allProjects.forEach((p) => {
+      opts += `<option value="${escapeHTML(p.name)}" ${p.name === currentVal ? 'selected' : ''}>📁 ${escapeHTML(p.name)}</option>`;
+    });
+    folderSelect.innerHTML = opts;
+  }
+
+  updateArchiveCount();
+  overlay.classList.add('open');
+}
+
+function closeArchiveExportModal() {
+  const overlay = document.getElementById('archive-export-modal-overlay');
+  if (overlay) overlay.classList.remove('open');
+}
+
+function updateArchiveCount() {
+  const folderSelect = document.getElementById('archive-export-folder');
+  const targetFolder = folderSelect ? folderSelect.value : '';
+  const countText = document.getElementById('archive-count-text');
+  if (!countText) return;
+
+  const eligibleRecs = allRecordings.filter((r) => {
+    const hasSummary = Boolean(r.summary_markdown || r.plaud_summary_markdown || r.summary_html || r.plaud_summary_html);
+    if (!hasSummary) return false;
+    if (!targetFolder) return true;
+    const folders = parseFolders(r.project_or_class);
+    return folders.includes(targetFolder);
+  });
+
+  const scopeLabel = targetFolder ? `in folder "${escapeHTML(targetFolder)}"` : 'across all folders';
+  countText.textContent = `${eligibleRecs.length} recording summary ${eligibleRecs.length === 1 ? 'file' : 'files'} ${scopeLabel} will be packaged.`;
+}
+
+function downloadArchive() {
+  const folderSelect = document.getElementById('archive-export-folder');
+  const targetFolder = folderSelect ? folderSelect.value : '';
+  const formatRadio = document.querySelector('input[name="export-format"]:checked');
+  const format = formatRadio ? formatRadio.value : 'md';
+
+  const btn = document.getElementById('btn-download-archive');
+  if (btn) {
+    const origHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span>⏳</span> Preparing ZIP...';
+    setTimeout(() => {
+      btn.disabled = false;
+      btn.innerHTML = origHtml;
+      closeArchiveExportModal();
+    }, 2500);
+  }
+
+  let url = `/api/export/archive?format=${encodeURIComponent(format)}`;
+  if (targetFolder) {
+    url += `&folder=${encodeURIComponent(targetFolder)}`;
+  }
+  window.location.href = url;
+}
+
+function initArchiveExport() {
+  const btnClose = document.getElementById('btn-close-archive-export');
+  if (btnClose) btnClose.addEventListener('click', closeArchiveExportModal);
+
+  const btnCancel = document.getElementById('btn-cancel-archive-export');
+  if (btnCancel) btnCancel.addEventListener('click', closeArchiveExportModal);
+
+  const folderSelect = document.getElementById('archive-export-folder');
+  if (folderSelect) folderSelect.addEventListener('change', updateArchiveCount);
+
+  const btnDownload = document.getElementById('btn-download-archive');
+  if (btnDownload) btnDownload.addEventListener('click', downloadArchive);
+
+  // Format card selection styling
+  document.querySelectorAll('.format-card').forEach((card) => {
+    card.addEventListener('click', () => {
+      document.querySelectorAll('.format-card').forEach((c) => c.classList.remove('selected'));
+      card.classList.add('selected');
+      const radio = card.querySelector('input[type="radio"]');
+      if (radio) radio.checked = true;
+    });
+  });
+}
+
+// ---------------- Knowledge Graph & Multi-Summary Q&A ---------------- //
+
+let knowledgeGraphData = null;
+let currentKnowledgeAnswer = '';
+let activeKnowledgeFolder = '';
+
+function openKnowledgeModal(initialFolder = '') {
+  const overlay = document.getElementById('knowledge-modal-overlay');
+  if (!overlay) return;
+
+  activeKnowledgeFolder = initialFolder || (currentFilter && currentFilter.project_or_class !== 'all' ? currentFilter.project_or_class : '');
+  const folderSelect = document.getElementById('knowledge-folder-select');
+  if (folderSelect) {
+    let opts = '<option value="">🌐 All Summaries &amp; Folders</option>';
+    allProjects.forEach((p) => {
+      opts += `<option value="${escapeHTML(p.name)}" ${p.name === activeKnowledgeFolder ? 'selected' : ''}>📁 ${escapeHTML(p.name)}</option>`;
+    });
+    folderSelect.innerHTML = opts;
+  }
+
+  overlay.classList.add('open');
+  loadKnowledgeGraphData();
+}
+
+function closeKnowledgeModal() {
+  const overlay = document.getElementById('knowledge-modal-overlay');
+  if (overlay) overlay.classList.remove('open');
+}
+
+async function loadKnowledgeGraphData() {
+  const statPill = document.getElementById('knowledge-stat-pill');
+  if (statPill) statPill.textContent = 'Loading graph...';
+
+  try {
+    let url = '/api/knowledge/graph';
+    if (activeKnowledgeFolder) {
+      url += `?folder=${encodeURIComponent(activeKnowledgeFolder)}`;
+    }
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data.success) {
+      knowledgeGraphData = data;
+      const { stats } = data;
+      if (statPill) {
+        statPill.textContent = `${stats.totalRecordings} summaries • ${stats.totalConcepts} concepts • ${stats.totalEdges} links`;
+      }
+      renderGraphCards();
+    }
+  } catch (err) {
+    console.error('Failed to load knowledge graph:', err);
+    if (statPill) statPill.textContent = 'Graph unavailable';
+  }
+}
+
+function switchKnowledgeTab(tabName) {
+  document.querySelectorAll('.knowledge-tab-btn').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.tab === tabName);
+  });
+  document.querySelectorAll('.knowledge-tab-pane').forEach((pane) => {
+    pane.style.display = 'none';
+  });
+  const activePane = document.getElementById(`pane-knowledge-${tabName}`);
+  if (activePane) {
+    activePane.style.display = 'flex';
+  }
+}
+
+async function askKnowledgeGraph(customQuery = '') {
+  const queryInput = document.getElementById('qa-query-input');
+  const query = (customQuery || (queryInput ? queryInput.value : '')).trim();
+  if (!query) {
+    if (queryInput) queryInput.focus();
+    return;
+  }
+
+  if (queryInput && customQuery) {
+    queryInput.value = customQuery;
+  }
+
+  // Ensure Ask tab is visible
+  switchKnowledgeTab('ask');
+
+  const emptyState = document.getElementById('qa-empty-state');
+  const loadingState = document.getElementById('qa-loading-state');
+  const resultsContainer = document.getElementById('qa-results-container');
+  const askBtn = document.getElementById('btn-ask-knowledge');
+
+  if (emptyState) emptyState.style.display = 'none';
+  if (resultsContainer) resultsContainer.style.display = 'none';
+  if (loadingState) loadingState.style.display = 'flex';
+  if (askBtn) askBtn.disabled = true;
+
+  try {
+    const res = await fetch('/api/knowledge/query', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query,
+        folder: activeKnowledgeFolder
+      })
+    });
+
+    const data = await res.json();
+    if (!data.success) {
+      throw new Error(data.error || 'Failed to query knowledge graph');
+    }
+
+    currentKnowledgeAnswer = data.answer || '';
+
+    // Render Answer Markdown HTML
+    const answerMarkdownEl = document.getElementById('qa-answer-markdown');
+    if (answerMarkdownEl) {
+      answerMarkdownEl.innerHTML = data.answerHtml || `<p>${escapeHTML(data.answer)}</p>`;
+    }
+
+    // Scope Badge
+    const scopeBadge = document.getElementById('qa-result-scope');
+    if (scopeBadge) {
+      scopeBadge.textContent = data.stats?.scope || 'All Folders';
+    }
+
+    // Render Citations / Sources
+    const sourcesCount = document.getElementById('qa-sources-count');
+    const sourcesList = document.getElementById('qa-sources-list');
+    const cited = data.citedRecordings || [];
+
+    if (sourcesCount) sourcesCount.textContent = cited.length;
+    if (sourcesList) {
+      if (cited.length === 0) {
+        sourcesList.innerHTML = '<div style="color:var(--text-dim);font-size:0.85rem;">No direct lecture citations.</div>';
+      } else {
+        sourcesList.innerHTML = cited.map((r) => {
+          const d = r.date ? new Date(r.date) : null;
+          const dateStr = d ? d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+          return `
+            <div class="qa-source-card" data-rec-id="${escapeHTML(r.id)}" title="Click to open lesson notes">
+              <div class="qa-source-header">
+                <span class="qa-source-name">${escapeHTML(r.name)}</span>
+                <span class="qa-source-folder">📁 ${escapeHTML(r.folder)}</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-top:0.25rem;">
+                <span class="qa-source-date">${dateStr}</span>
+                <span style="font-size:0.75rem;color:var(--primary);">Open Notes →</span>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        sourcesList.querySelectorAll('.qa-source-card').forEach((card) => {
+          card.addEventListener('click', () => {
+            const recId = card.dataset.recId;
+            if (recId) {
+              closeKnowledgeModal();
+              openReader(recId);
+            }
+          });
+        });
+      }
+    }
+
+    // Render Related Concepts
+    const conceptsSection = document.getElementById('qa-concepts-section');
+    const conceptsList = document.getElementById('qa-concepts-list');
+    const matched = data.matchedConcepts || [];
+
+    if (matched.length > 0 && conceptsSection && conceptsList) {
+      conceptsSection.style.display = 'flex';
+      conceptsList.innerHTML = matched.map((c) => {
+        return `<span class="concept-badge" data-concept="${escapeHTML(c.label || c.name)}"># ${escapeHTML(c.label || c.name)}</span>`;
+      }).join('');
+
+      conceptsList.querySelectorAll('.concept-badge').forEach((badge) => {
+        badge.addEventListener('click', () => {
+          const conceptName = badge.dataset.concept;
+          if (conceptName) {
+            askKnowledgeGraph(`Explain the concept "${conceptName}" and how it connects to other topics across lectures.`);
+          }
+        });
+      });
+    } else if (conceptsSection) {
+      conceptsSection.style.display = 'none';
+    }
+
+    if (resultsContainer) resultsContainer.style.display = 'flex';
+  } catch (err) {
+    alert(`Failed to query knowledge graph: ${err.message}`);
+    if (emptyState) emptyState.style.display = 'block';
+  } finally {
+    if (loadingState) loadingState.style.display = 'none';
+    if (askBtn) askBtn.disabled = false;
+  }
+}
+
+function renderGraphCards(filterQuery = '') {
+  const grid = document.getElementById('graph-cards-grid');
+  const summaryEl = document.getElementById('graph-stats-summary');
+  if (!grid || !knowledgeGraphData) return;
+
+  const q = (filterQuery || '').toLowerCase().trim();
+  const nodes = knowledgeGraphData.nodes || [];
+
+  // Filter for concepts, topics, decisions, actions
+  let filtered = nodes.filter((n) => ['concept', 'topic', 'decision', 'action'].includes(n.type));
+  if (q) {
+    filtered = filtered.filter((n) => {
+      const label = (n.label || '').toLowerCase();
+      const def = (n.definition || '').toLowerCase();
+      const ctx = (n.context || '').toLowerCase();
+      return label.includes(q) || def.includes(q) || ctx.includes(q);
+    });
+  }
+
+  if (summaryEl) {
+    summaryEl.textContent = `Showing ${filtered.length} extracted concepts & entities`;
+  }
+
+  if (filtered.length === 0) {
+    grid.innerHTML = `
+      <div style="grid-column: 1 / -1; text-align: center; padding: 2.5rem; color: var(--text-muted);">
+        <p>No concepts found matching "${escapeHTML(q)}".</p>
+      </div>
+    `;
+    return;
+  }
+
+  const typeBadges = {
+    concept: 'badge-concept',
+    topic: 'badge-topic',
+    decision: 'badge-decision',
+    action: 'badge-action'
+  };
+
+  grid.innerHTML = filtered.map((n) => {
+    const badgeClass = typeBadges[n.type] || 'badge-concept';
+    const recTitles = Array.isArray(n.recordingTitles) ? n.recordingTitles : [];
+    const recIds = Array.isArray(n.recordingIds) ? n.recordingIds : [];
+
+    const linksHtml = recIds.map((id, idx) => {
+      const title = recTitles[idx] || 'Recording';
+      return `<button class="graph-card-link-btn" data-rec-id="${escapeHTML(id)}" title="${escapeHTML(title)}">📖 ${escapeHTML(title)}</button>`;
+    }).slice(0, 3).join('');
+
+    return `
+      <div class="graph-card">
+        <div class="graph-card-header">
+          <div class="graph-card-title">${escapeHTML(n.label)}</div>
+          <span class="graph-card-badge ${badgeClass}">${escapeHTML(n.type)}</span>
+        </div>
+        ${n.definition ? `<div class="graph-card-def">${escapeHTML(n.definition)}</div>` : ''}
+        ${n.context && n.context !== n.definition ? `<div class="graph-card-context">${escapeHTML(n.context)}</div>` : ''}
+        <div class="graph-card-links">
+          ${linksHtml}
+          <button class="graph-card-ask-btn" data-label="${escapeHTML(n.label)}" title="Ask AI about this entity">Ask Studio ✨</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  grid.querySelectorAll('.graph-card-link-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.recId;
+      if (id) {
+        closeKnowledgeModal();
+        openReader(id);
+      }
+    });
+  });
+
+  grid.querySelectorAll('.graph-card-ask-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const label = btn.dataset.label;
+      if (label) {
+        askKnowledgeGraph(`Explain the significance of "${label}" and how it connects to other topics across lectures.`);
+      }
+    });
+  });
+}
+
+function initKnowledgeModal() {
+  const btnClose = document.getElementById('btn-close-knowledge');
+  if (btnClose) btnClose.addEventListener('click', closeKnowledgeModal);
+
+  const folderSelect = document.getElementById('knowledge-folder-select');
+  if (folderSelect) {
+    folderSelect.addEventListener('change', (e) => {
+      activeKnowledgeFolder = e.target.value;
+      loadKnowledgeGraphData();
+    });
+  }
+
+  // Tabs
+  document.querySelectorAll('.knowledge-tab-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      switchKnowledgeTab(btn.dataset.tab);
+    });
+  });
+
+  // Prompt chips
+  document.querySelectorAll('.prompt-chip').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      const prompt = chip.dataset.prompt;
+      if (prompt) {
+        askKnowledgeGraph(prompt);
+      }
+    });
+  });
+
+  // Ask Button & Enter key
+  const btnAsk = document.getElementById('btn-ask-knowledge');
+  if (btnAsk) {
+    btnAsk.addEventListener('click', () => askKnowledgeGraph());
+  }
+
+  const queryInput = document.getElementById('qa-query-input');
+  if (queryInput) {
+    queryInput.addEventListener('keydown', (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault();
+        askKnowledgeGraph();
+      }
+    });
+  }
+
+  // Copy Answer
+  const btnCopy = document.getElementById('btn-copy-answer');
+  if (btnCopy) {
+    btnCopy.addEventListener('click', async () => {
+      if (!currentKnowledgeAnswer) return;
+      try {
+        await navigator.clipboard.writeText(currentKnowledgeAnswer);
+        const orig = btnCopy.textContent;
+        btnCopy.textContent = '✓ Copied!';
+        setTimeout(() => { btnCopy.textContent = orig; }, 1500);
+      } catch (err) {
+        alert('Failed to copy: ' + err.message);
+      }
+    });
+  }
+
+  // Graph Search
+  const graphSearch = document.getElementById('graph-search-input');
+  const graphClear = document.getElementById('btn-clear-graph-search');
+  if (graphSearch) {
+    graphSearch.addEventListener('input', (e) => {
+      const val = e.target.value;
+      if (graphClear) graphClear.style.display = val ? 'block' : 'none';
+      renderGraphCards(val);
+    });
+  }
+
+  if (graphClear && graphSearch) {
+    graphClear.addEventListener('click', () => {
+      graphSearch.value = '';
+      graphClear.style.display = 'none';
+      renderGraphCards('');
+    });
+  }
 }
 
 // ---------------- Utility ---------------- //
