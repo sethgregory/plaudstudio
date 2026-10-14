@@ -191,8 +191,9 @@
   <div class="modal-overlay" id="reader-modal-overlay">
     <div class="reader-modal">
       <div class="reader-header">
-        <div class="reader-title-area">
-          <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.35rem;flex-wrap:wrap;">
+        <!-- Top Row: Tags & Badges on Left, Close Button on Far Right -->
+        <div class="reader-header-top">
+          <div class="reader-header-tags">
             <span id="modal-storage-badge" class="storage-badge storage-local">💻 Stored Locally</span>
             <div id="modal-folder-tags" style="display:inline-flex;align-items:center;gap:0.4rem;flex-wrap:wrap;"></div>
             <div class="folder-picker-wrapper" style="position:relative;display:inline-block;">
@@ -202,43 +203,51 @@
               <div id="folder-picker-menu" class="folder-picker-dropdown" style="display:none;"></div>
             </div>
           </div>
-          <div class="reader-title-container" style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
-            <div class="reader-title" id="modal-title" title="Click or tap pencil to edit title" style="cursor:pointer;">Lecture Title</div>
-            <button id="btn-edit-modal-title" class="btn-icon" title="Edit Title" style="font-size:0.95rem;padding:0.2rem 0.4rem;opacity:0.75;cursor:pointer;">✏️</button>
-            <button id="btn-suggest-title" class="btn btn-sm" title="Adopt Title from AI Summary" style="display:none;padding:0.15rem 0.5rem;font-size:0.75rem;background:rgba(56,189,248,0.12);color:#38bdf8;border:1px solid rgba(56,189,248,0.3);border-radius:4px;">✨ Adopt Summary Title</button>
-            <div id="modal-original-title" style="display:none;width:100%;font-size:0.8rem;color:var(--text-muted);margin-top:-0.2rem;"></div>
-          </div>
-          <div id="modal-title-edit-box" style="display:none;align-items:center;gap:0.5rem;margin:0.35rem 0;">
-            <input type="text" id="modal-title-input" style="flex:1;font-size:1.1rem;font-weight:600;padding:0.35rem 0.6rem;background:var(--bg-input, #1e293b);color:var(--text-main, #f8fafc);border:1px solid var(--border-color, #334155);border-radius:6px;outline:none;">
-            <button id="btn-save-modal-title" class="btn btn-primary" style="padding:0.35rem 0.75rem;font-size:0.85rem;">Save</button>
-            <button id="btn-cancel-modal-title" class="btn" style="padding:0.35rem 0.65rem;font-size:0.85rem;">Cancel</button>
-          </div>
+          <button id="btn-close-reader" class="btn-icon reader-close-btn" title="Close">✕</button>
+        </div>
+
+        <!-- Full-Width Title Row: Title with Pencil directly to its right -->
+        <div class="reader-title-container">
+          <div class="reader-title" id="modal-title" title="Click or tap pencil to edit title">Lecture Title</div>
+          <button id="btn-edit-modal-title" class="btn-icon btn-edit-title" title="Edit Title">✏️</button>
+          <button id="btn-suggest-title" class="btn btn-sm" title="Adopt Title from AI Summary" style="display:none;padding:0.2rem 0.6rem;font-size:0.78rem;background:rgba(56,189,248,0.12);color:#38bdf8;border:1px solid rgba(56,189,248,0.3);border-radius:6px;cursor:pointer;">✨ Adopt Summary Title</button>
+        </div>
+        <div id="modal-original-title" style="display:none;font-size:0.8rem;color:var(--text-muted);margin-top:-0.25rem;"></div>
+
+        <!-- Full-Width Title Edit Box (Shown during rename) -->
+        <div id="modal-title-edit-box" style="display:none;align-items:center;gap:0.5rem;width:100%;">
+          <input type="text" id="modal-title-input" style="flex:1;font-size:1.15rem;font-weight:600;padding:0.4rem 0.75rem;background:var(--bg-input, #1e293b);color:var(--text-main, #f8fafc);border:1px solid var(--border-color, #334155);border-radius:6px;outline:none;">
+          <button id="btn-save-modal-title" class="btn btn-primary" style="padding:0.4rem 0.85rem;font-size:0.85rem;">Save</button>
+          <button id="btn-cancel-modal-title" class="btn" style="padding:0.4rem 0.75rem;font-size:0.85rem;">Cancel</button>
+        </div>
+
+        <!-- Action Bar: Metadata on Left, Action Buttons on Right (sitting below the title) -->
+        <div class="reader-actions-bar">
           <div class="reader-meta">
             <span id="modal-date">📅 2026-10-09</span>
             <span id="modal-duration">⏱️ 50 mins</span>
             <span id="modal-status-badge" class="status-badge status-ready">Ready</span>
           </div>
-        </div>
 
-        <div style="display:flex;align-items:center;gap:0.45rem;flex-wrap:wrap;">
-          <button id="btn-pull-cloud" class="btn btn-sm" title="Fetch transcript and summary from Plaud Cloud">
-            <span>☁️</span> Pull Cloud Data
-          </button>
-          <div class="export-btn-group" style="display:inline-flex;border-radius:6px;overflow:hidden;border:1px solid var(--border);">
-            <button id="btn-export-md" class="btn btn-sm" style="border-radius:0;border:none;border-right:1px solid var(--border);" title="Export Obsidian & Notion compatible Markdown with YAML metadata">
-              <span>📝</span> .MD
+          <div class="reader-actions-group">
+            <button id="btn-pull-cloud" class="btn btn-sm" title="Fetch transcript and summary from Plaud Cloud">
+              <span>☁️</span> Pull Cloud Data
             </button>
-            <button id="btn-export-html" class="btn btn-sm" style="border-radius:0;border:none;" title="Download standalone offline HTML document with math and styles">
-              <span>🌐</span> .HTML
+            <div class="export-btn-group" style="display:inline-flex;border-radius:6px;overflow:hidden;border:1px solid var(--border);">
+              <button id="btn-export-md" class="btn btn-sm" style="border-radius:0;border:none;border-right:1px solid var(--border);" title="Export Obsidian & Notion compatible Markdown with YAML metadata">
+                <span>📝</span> .MD
+              </button>
+              <button id="btn-export-html" class="btn btn-sm" style="border-radius:0;border:none;" title="Download standalone offline HTML document with math and styles">
+                <span>🌐</span> .HTML
+              </button>
+            </div>
+            <button id="btn-retranscribe" class="btn btn-sm" title="Re-run Whisper Speech-to-Text & Diarization">
+              <span>🎙️</span> Re-Transcribe
+            </button>
+            <button id="btn-resummarize" class="btn btn-sm" title="Re-generate AI Summary">
+              <span>✨</span> Re-Summarize
             </button>
           </div>
-          <button id="btn-retranscribe" class="btn btn-sm" title="Re-run Whisper Speech-to-Text & Diarization">
-            <span>🎙️</span> Re-Transcribe
-          </button>
-          <button id="btn-resummarize" class="btn btn-sm" title="Re-generate AI Summary">
-            <span>✨</span> Re-Summarize
-          </button>
-          <button id="btn-close-reader" class="btn-icon" style="font-size:1.15rem;padding:0.35rem 0.6rem;" title="Close">✕</button>
         </div>
       </div>
 

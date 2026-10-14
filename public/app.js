@@ -778,7 +778,6 @@ function createRecordingCard(rec) {
     <div class="card-top">
       <div class="card-title-wrap">
         <div class="card-title" title="${escapeHTML(rec.name)}">${escapeHTML(rec.name)}</div>
-        <button class="btn-icon btn-rename-card" title="Edit Title" style="padding:2px 4px;font-size:0.8rem;opacity:0.6;flex-shrink:0;cursor:pointer;">✏️</button>
       </div>
       <span class="status-badge ${statusBadgeClass}">${statusText}</span>
     </div>
@@ -799,15 +798,6 @@ function createRecordingCard(rec) {
       ${actionsHTML}
     </div>
   `;
-
-  // Rename card button
-  const renameBtn = card.querySelector('.btn-rename-card');
-  if (renameBtn) {
-    renameBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      startInlineCardTitleEdit(card, rec);
-    });
-  }
 
   // Click card to open reader
   card.addEventListener('click', (e) => {
@@ -875,62 +865,6 @@ function createRecordingCard(rec) {
 }
 
 // ---------------- Title Editing Helpers ---------------- //
-
-function startInlineCardTitleEdit(card, rec) {
-  const wrap = card.querySelector('.card-title-wrap');
-  if (!wrap) return;
-  const originalHtml = wrap.innerHTML;
-
-  wrap.innerHTML = `
-    <input type="text" class="card-inline-input" value="${escapeHTML(rec.name)}" style="flex:1;min-width:0;font-size:0.95rem;font-weight:600;padding:2px 6px;border-radius:4px;border:1px solid #38bdf8;background:var(--bg-input, #1e293b);color:var(--text-main, #f8fafc);outline:none;" />
-    <button class="btn btn-sm btn-primary btn-save-card-inline" style="padding:2px 6px;font-size:0.75rem;">✓</button>
-    <button class="btn btn-sm btn-cancel-card-inline" style="padding:2px 6px;font-size:0.75rem;">✕</button>
-  `;
-
-  const input = wrap.querySelector('.card-inline-input');
-  const saveBtn = wrap.querySelector('.btn-save-card-inline');
-  const cancelBtn = wrap.querySelector('.btn-cancel-card-inline');
-
-  input.focus();
-  input.select();
-
-  let finished = false;
-  const finish = async (save) => {
-    if (finished) return;
-    finished = true;
-    const newTitle = input.value.trim();
-    if (save && newTitle && newTitle !== rec.name) {
-      await updateRecordingTitle(rec.id, newTitle);
-    } else {
-      wrap.innerHTML = originalHtml;
-      const newRenameBtn = wrap.querySelector('.btn-rename-card');
-      if (newRenameBtn) {
-        newRenameBtn.addEventListener('click', (ev) => {
-          ev.stopPropagation();
-          startInlineCardTitleEdit(card, rec);
-        });
-      }
-    }
-  };
-
-  saveBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    finish(true);
-  });
-
-  cancelBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    finish(false);
-  });
-
-  input.addEventListener('keydown', (e) => {
-    e.stopPropagation();
-    if (e.key === 'Enter') finish(true);
-    if (e.key === 'Escape') finish(false);
-  });
-
-  input.addEventListener('click', (e) => e.stopPropagation());
-}
 
 async function updateRecordingTitle(recordingId, newTitle) {
   if (!newTitle || !newTitle.trim()) return;
